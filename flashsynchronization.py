@@ -19,12 +19,14 @@ def compute_features(image_sequence, camera, frame_start, frame_end):
             logging.info("cam %d: %d / %d" % (camera, i, frame_end - frame_start))
     return features
 
-sequence_length_sec = 10
+sequence_length_sec = 600
 ocred_timings = 'video/usa_rus/frame_timings.pkl'
 root = '../data/ihwc2015/'
     # '../data/ihwc2015/video/usa_rus/'
-features_file = 'out/flashes2d.pkl'
-out_feature_images = 'out/camera %s: %s_%d.png'
+
+out_dir = 'out/'
+features_file = os.path.join(out_dir, 'flashes2d.pkl')
+out_feature_images = os.path.join(out_dir, '%s_%d.png')
 
 # /home/matej/prace/sport_tracking/git/experiments/2016-08-22_subframe_synchronization
 p = parameters.Parameters('parameters.yaml')
@@ -40,6 +42,8 @@ if os.path.exists(features_file):
         features = pickle.load(fr)
         features_start = pickle.load(fr)
 else:
+    if not os.path.exists():
+        os.mkdir(out_dir)
     features = {}
     features_start = {}
 
@@ -52,7 +56,7 @@ else:
         img = cv2.normalize(features[cam].astype(float),
                             np.zeros_like(features[cam], dtype=float),
                             0, 255, cv2.NORM_MINMAX, dtype=8)
-        cv2.imwrite(out_feature_images % (cam, os.path.splitext(features_file)[0], cam), img)
+        cv2.imwrite(out_feature_images % (os.path.splitext(features_file)[0], cam), img)
 
     with open(features_file, 'wb') as fw:
         pickle.dump(features, fw)
