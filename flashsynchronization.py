@@ -26,7 +26,7 @@ root = '../data/ihwc2015/'
 
 out_dir = 'out/'
 features_file = os.path.join(out_dir, 'flashes2d.pkl')
-out_feature_images = os.path.join(out_dir, '%s_%d.png')
+out_feature_images = os.path.join(out_dir, '%d.png')
 
 # /home/matej/prace/sport_tracking/git/experiments/2016-08-22_subframe_synchronization
 p = parameters.Parameters('parameters.yaml')
@@ -42,7 +42,7 @@ if os.path.exists(features_file):
         features = pickle.load(fr)
         features_start = pickle.load(fr)
 else:
-    if not os.path.exists():
+    if not os.path.exists(out_dir):
         os.mkdir(out_dir)
     features = {}
     features_start = {}
@@ -56,7 +56,7 @@ else:
         img = cv2.normalize(features[cam].astype(float),
                             np.zeros_like(features[cam], dtype=float),
                             0, 255, cv2.NORM_MINMAX, dtype=8)
-        cv2.imwrite(out_feature_images % (os.path.splitext(features_file)[0], cam), img)
+        cv2.imwrite(out_feature_images % cam, img)
 
     with open(features_file, 'wb') as fw:
         pickle.dump(features, fw)
