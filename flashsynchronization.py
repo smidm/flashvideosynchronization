@@ -25,12 +25,13 @@ root = '../data/ihwc2015/'
     # '../data/ihwc2015/video/usa_rus/'
 
 out_dir = 'out/'
-features_file = os.path.join(out_dir, 'flashes2d.pkl')
+features_file = os.path.join(out_dir, 'flashes2d_no_mask.pkl')
 out_feature_images = os.path.join(out_dir, '%d.png')
 
 # /home/matej/prace/sport_tracking/git/experiments/2016-08-22_subframe_synchronization
 p = parameters.Parameters('parameters.yaml')
 # p.c['data_root'] = root
+del p.c['background_subtraction']['masks']
 bgs = p.get_foreground_sequence()
 # images = p.get_image_sequence()
 sync = MultipleVideoSynchronization()
