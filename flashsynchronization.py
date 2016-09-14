@@ -8,13 +8,16 @@ import pickle
 logging.basicConfig(level=logging.INFO)
 
 
-def compute_features(image_sequence, camera, frame_start, frame_end):
-    features = np.zeros((image_sequence.get_image(0, camera).shape[0], frame_end - frame_start), dtype=np.float16)
+def compute_luminance_median(img):
+    return np.median(cv2.cvtColor(img, cv2.COLOR_RGB2Lab)[:, :, 0], axis=1)
+
+
+def extract_features(image_sequence, feature_func, camera, frame_start, frame_end, dtype=np.float16):
+    features = np.zeros((image_sequence.get_image(0, camera).shape[0], frame_end - frame_start), dtype=dtype)
 
     for i, frame in enumerate(xrange(frame_start, frame_end)):
         img = image_sequence.get_image(frame, camera)
-        features[:, i] = img.sum(axis=1) / img.shape[1]
-        # np.max(img.sum(axis=1) / (img.shape[1] * 255. / 100))
+        features[:, i] = feature_func(img)
         if (i % 10) == 0:
             logging.info("cam %d: %d / %d" % (camera, i, frame_end - frame_start))
     return features
@@ -25,15 +28,15 @@ root = '../data/ihwc2015/'
     # '../data/ihwc2015/video/usa_rus/'
 
 out_dir = 'out/'
-features_file = os.path.join(out_dir, 'flashes2d_no_mask.pkl')
+features_file = os.path.join(out_dir, 'flashes2d_luminance_median.pkl')
 out_feature_images = os.path.join(out_dir, '%d.png')
 
 # /home/matej/prace/sport_tracking/git/experiments/2016-08-22_subframe_synchronization
 p = parameters.Parameters('parameters.yaml')
 # p.c['data_root'] = root
 del p.c['background_subtraction']['masks']
-bgs = p.get_foreground_sequence()
-# images = p.get_image_sequence()
+# bgs = p.get_foreground_sequence()
+images = p.get_image_sequence()
 sync = MultipleVideoSynchronization()
 sync.load(os.path.join(p.c['data_root'], ocred_timings))
 match_start = np.datetime64('1900-01-01T' + p.c['match_start'])
@@ -52,12 +55,12 @@ else:
         start = np.searchsorted(sync.get_timings()[cam], match_start)
         end = np.searchsorted(sync.get_timings()[cam], match_start + np.timedelta64(sequence_length_sec, 's'))
         features_start[cam] = start
-        features[cam] = compute_features(bgs, cam, start, end)
+        features[cam] = extract_features(images, compute_luminance_median, cam, start, end, dtype=np.uint8)
 
-        img = cv2.normalize(features[cam].astype(float),
-                            np.zeros_like(features[cam], dtype=float),
-                            0, 255, cv2.NORM_MINMAX, dtype=8)
-        cv2.imwrite(out_feature_images % cam, img)
+        # img = cv2.normalize(features[cam].astype(float),
+        #                     np.zeros_like(features[cam], dtype=float),
+        #                     0, 255, cv2.NORM_MINMAX, dtype=8)
+        # cv2.imwrite(out_feature_images % cam, img)
 
     with open(features_file, 'wb') as fw:
         pickle.dump(features, fw)
