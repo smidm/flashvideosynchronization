@@ -1,7 +1,5 @@
 import os
 import logging
-import pickle
-import itertools
 import matplotlib.pylab as plt
 import matplotlib
 import numpy as np
@@ -9,7 +7,6 @@ import scipy
 import cv2
 import joblib
 from sklearn import linear_model
-from tabulate import tabulate
 try:
     import seaborn as sns
     has_seaborn = True
@@ -20,7 +17,7 @@ import imagesourcesynchronized
 import imagesourcetimedvideo
 
 logging.basicConfig(level=logging.INFO)
-memory = joblib.Memory(cachedir='.', verbose=0)
+memory = joblib.Memory(cachedir='.', verbose=2)
 
 
 def compute_luminance_median(img):
@@ -90,7 +87,7 @@ def detect_events_in_video(filename, config=None):
     return events
 
 
-class FlashSynchronization(object):
+class FlashVideoSynchronization(object):
     def __init__(self):
         self.events = {}
         self.model = {}
@@ -346,7 +343,6 @@ class FlashSynchronization(object):
         return frame_time * drift + shift + row * time_per_row
 
     def __get_synchronized_frames_single_cam__(self, timestamps, master_timestamps, max_sync_error=None):
-        # , dropped=True, repeat=False):
         if not max_sync_error:
             max_sync_error = scipy.stats.mode(np.diff(master_timestamps))[0] / 2  # half of the standard frame duration
 
@@ -428,164 +424,59 @@ class FlashSynchronization(object):
 
 
 if __name__ == '__main__':
+    # example 4 camera synchronization
+    cameras = [1, 2, 3, 4]
+    filenames = {cam: 'data/ice_hockey/%d.mp4' % cam for cam in cameras}
 
-    selected_cameras = [1, 2, 3, 4]
-    filenames = {cam: '../data/ihwc2015/video/usa_rus/%d.mp4' % cam for cam in selected_cameras}
-
-    # selected_cameras = [1, 3]
-    # filenames = {cam: '/home/matej/nobackup/sporttracking/subframe_synchronization/%d.mp4' % cam
-    #              for cam in selected_cameras}
-
+    # load video files and extract frame timestamps
     sources = {cam: imagesourcetimedvideo.ImageSourceTimedVideo(filenames[cam])
-              for cam in selected_cameras}
-    sync = FlashSynchronization()
+               for cam in cameras}
+    for source in sources.itervalues():
+        source.extract_timestamps()
 
-    images_dimensions = {}
-    for cam in selected_cameras:
-        img = sources[cam].get_image(0)
-        images_dimensions[cam] = img.shape
-    obsolete_regions = {cam: {'top': 28, 'bottom': images_dimensions[cam][0] - 1}
-                        for cam in selected_cameras}
-    override_good = {0: [], 1: [1917, 5983, 10718], 2: [3605, 5122, 14935], 3: [6415, ], 4: []}  # force to stay
-    override_start = {0: [], 1: [(10718, 983), ], 2: [], 3: [(6415, 633), ], 4: []}  # force to stay and fix start
-    override_bad = {0: [], 1: [], 2: [12992, ], 3: [], 4: []}  # force to filter out
+    # detect flash events
+    sync = FlashVideoSynchronization()
+    sync.detect_flash_events(filenames)
 
-    # run = 'visapp'
-    # run = 'visapp_recompute_events'
-    # run = '4cams_whole_file'
-    run = '5minutes'
-    # run = 'new code'
-    if run == 'new code':
-        sync.detect_flash_events(filenames)
+    # # save all detected events for analysis
+    # features = {cam: extract_features(filenames[cam], compute_luminance_median, dtype=np.uint8) for cam in cameras}
+    # sync.save_event_images(sources, features, 'out/events')
 
-        matching_events = {1: 3, 3: 2, 2: 8, 4: 2}
-        offsets = {cam: sync.events[cam][matching_events[cam]]['time'] for cam in selected_cameras}
-        sync.filter_events(obsolete_regions, override_good, override_bad, override_start)
+    # manually set rough offset by matching an event
+    sync.show_events()
+    matching_events = {1: 3, 3: 2, 2: 8, 4: 2}
+    offsets = {cam: sync.events[cam][matching_events[cam]]['time'] for cam in cameras}
+    sync.show_events(offsets)  # now the events should appear aligned
 
-        # with open('flashsynchronization_4cam_full.pkl', 'wb') as fw:
-        #     pickle.dump(sync.__features__, fw)
-        #     pickle.dump(sync.events, fw)
-        #     pickle.dump(offsets, fw)
-    elif run == 'visapp_recompute_events':
-        with open('flashsynchronization_4cam_full.pkl', 'rb') as fr:
-            sync.__features__ = pickle.load(fr)
-            sync.events = pickle.load(fr)
-            # offsets = pickle.load(fr)
+    # # optionally filter bad events and fix some wrongly detected
+    # images_dimensions = {}
+    # for cam in cameras:
+    #     img = sources[cam].get_image(0)
+    #     images_dimensions[cam] = img.shape
+    # obsolete_regions = {cam: {'top': 28, 'bottom': images_dimensions[cam][0] - 1}
+    #                     for cam in cameras}
+    # override_good = {0: [], 1: [1917, 5983, 10718], 2: [3605, 5122, 14935], 3: [6415, ], 4: []}  # force to stay
+    # override_start = {0: [], 1: [(10718, 983), ], 2: [], 3: [(6415, 633), ], 4: []}  # force to stay and fix start
+    # override_bad = {0: [], 1: [], 2: [12992, ], 3: [], 4: []}  # force to filter out
+    # sync.filter_events(obsolete_regions, override_good, override_bad, override_start)
 
-        # offsets = {1: 65177.000000000007, 2: 59096.0, 3: 102673.0, 4: 89037.0}
+    # synchronize cameras: find parameters transformations that map camera time to reference camera time
+    sync.synchronize(cameras, offsets, base_cam=1)
+    print sync.model
 
-        # find events (state before sync.filter_events)
-        for cam in selected_cameras:
-            sources[cam].extract_timestamps()
-        sync.events = {cam: detect_events(sync.__features__[cam], sources[cam].timestamps_ms) for cam in selected_cameras}
+    print sync.get_time(1, 0, 1000)
 
-        # 10 minutes from the game start
-        visapp_used_frames = {1: (1669, 16564), 2: (1517, 16412), 3: (2203, 14723), 4: (1926, 14590)}
-        for cam in selected_cameras:
-            visapp_mask = (sync.events[cam]['frame'] > visapp_used_frames[cam][0]) & \
-                          (sync.events[cam]['frame'] < visapp_used_frames[cam][1])
-            sync.events[cam] = sync.events[cam][visapp_mask]
+    # get frame synchronized image sources
+    sources_sync = sync.get_synchronized_image_sources(sources, master=1, dropped=False)  # , perfect_master=False)
 
-        print {cam: len(sync.events[cam]) for cam in selected_cameras}
-        sync.filter_events(obsolete_regions, override_good, override_bad, override_start)
-
-        with open('flashsynchronization_4cam_visapp.pkl', 'wb') as fw:
-            pickle.dump(sync.events, fw)
-
-        matching_events = {1: 0, 3: 0, 2: 0, 4: 0}
-        offsets = {cam: sync.events[cam][matching_events[cam]]['time'] for cam in selected_cameras}
-    elif run == 'visapp':
-        with open('flashsynchronization_4cam_visapp.pkl', 'rb') as fr:
-            sync.events = pickle.load(fr)
-        matching_events = {1: 0, 3: 0, 2: 0, 4: 0}
-        offsets = {cam: sync.events[cam][matching_events[cam]]['time'] for cam in selected_cameras}
-    elif run == '4cams_whole_file':
-        with open('flashsynchronization_4cam_full.pkl', 'rb') as fr:
-            sync.__features__ = pickle.load(fr)
-            sync.events = pickle.load(fr)
-        # matching_events = {1: 3, 3: 2, 2: 8, 4: 2}
-        matching_events = {1: 0, 2: 1, 3: 2, 4: 3}
-        offsets = {cam: sync.events[cam][matching_events[cam]]['time'] for cam in selected_cameras}
-
-        # sync.filter_events(obsolete_regions, override_good, override_bad, override_start)
-    elif run == '5minutes':
-        with open('flashsynchronization_4cam_full.pkl', 'rb') as fr:
-            sync.__features__ = pickle.load(fr)
-            sync.events = pickle.load(fr)
-        matching_events = {1: 0, 2: 1, 3: 2, 4: 3}
-        offsets = {cam: sync.events[cam][matching_events[cam]]['time'] for cam in selected_cameras}
-        length_min = 5
-        length_ms = length_min * 60 * 1000
-        events = {}
-        for cam in selected_cameras:
-            mask = sync.events[cam]['time'] < length_ms
-            events[cam] = sync.events[cam][mask]
-        sync.events = events
-
-        sync.filter_events(obsolete_regions, override_good, override_bad, override_start)
-        # {cam: sync.events[cam][-1]['frame'] for cam in selected_cameras}
-    else:
-        assert False
-
-    print {cam: len(sync.events[cam]) for cam in selected_cameras}
-    # sync.show_events(offsets)
-
-    # matched = sync.__match_events__({cam: sync.events[cam]['time'] for cam in selected_cameras},
-    #                       selected_cameras, offsets, 1)
-    #
-    # mask_full_match = ~np.isnan(matched.sum(axis=1))
-
-    matched_events = sync.get_matched_events(selected_cameras, offsets)
-
-    parameters = {1: {'sensor_rows': 2625, 'mode_duration_ms': 40},
-                  2: {'sensor_rows': 2625, 'mode_duration_ms': 40},
-                  3: {'sensor_rows': 978,  'mode_duration_ms': 40},
-                  4: {'sensor_rows': 978,  'mode_duration_ms': 40},
-                  }
-
-    t = []
-    for cam1, cam2 in itertools.combinations(offsets.keys(), 2):
-        events_ij = sync.get_matched_events([cam1, cam2], offsets)
-
-        # sync.synchronize_with_parameters(cam1, cam2, offsets, parameters=parameters)
-        sync.synchronize([cam1, cam2], offsets)
-        times1 = sync.get_time(cam1, events_ij[cam1]['time'], events_ij[cam1]['start'])
-        times2 = sync.get_time(cam2, events_ij[cam2]['time'], events_ij[cam2]['start'])
-
-        n = len(events_ij[cam1])
-        t.append(['%d %d' % (cam1, cam2),
-                  n,
-                  sync.model[cam2]['drift'] - 1,
-                  sync.model[cam2]['shift'],
-                  sync.model[cam1]['time_per_row'],
-                  sync.model[cam2]['time_per_row'],
-                  (times1 - times2).std(),
-                  # clock2_drift_lines_per_second,
-                  # np.count_nonzero(~model_ransac.inlier_mask_),
-                  ])
-    headers = ['camera', 'number of events', 'drift', 'shift (in ms)', 't/row cam1', 't/row cam2', 'std (in ms)']
-    print(tabulate(t, headers=headers))
-
-    reference_cam = 1
-    sync.synchronize(selected_cameras, offsets, reference_cam)
-    t = []
-    for cam in set(selected_cameras) - {reference_cam}:
-        events_ij = sync.get_matched_events([reference_cam, cam], offsets)
-        times1 = sync.get_time(reference_cam, events_ij[reference_cam]['time'], events_ij[reference_cam]['start'])
-        times2 = sync.get_time(cam, events_ij[cam]['time'], events_ij[cam]['start'])
-        n = len(events_ij[cam])
-        t.append(['%d %d' % (reference_cam, cam),
-                  n,
-                  sync.model[cam]['drift'] - 1,
-                  sync.model[cam]['shift'],
-                  sync.model[reference_cam]['time_per_row'],
-                  sync.model[cam]['time_per_row'],
-                  (times1 - times2).std(),
-                  ])
-    headers = ['camera', 'number of events', 'drift', 'shift (in ms)', 't/row cam1', 't/row cam2', 'std (in ms)']
-    print(tabulate(t, headers=headers))
-
-    sync.save_event_images(sources, sync.__features__, 'out/events')
-
-
-
+    # use the synchronized video sources to show synchronized frames with time deviations
+    frame = 0
+    for i, (cam, source) in enumerate(sources_sync.iteritems()):
+        plt.figure()
+        plt.title('err: %02.f ms' % source.get_synchronization_error(frame))
+        img = source.get_image(frame)
+        if img is not None:
+            plt.imshow(img)
+        plt.grid(False)
+        plt.axis('off')
+    plt.show()
