@@ -30,6 +30,6 @@ setup(
     keywords='video synchronization',
     py_modules=['flashvideosynchronization'],
     install_requires=['imagesource', 'sklearn', 'joblib', 'numpy', 'matplotlib', 'scipy'],
-    extras_require=['seaborn'],
+    extras_require={'visualization': 'seaborn'},
 )
 
