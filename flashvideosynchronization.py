@@ -12,9 +12,7 @@ try:
     has_seaborn = True
 except ImportError:
     has_seaborn = False
-import imagesourcevideo
-import imagesourcesynchronized
-import imagesourcetimedvideo
+import imagesource
 
 logging.basicConfig(level=logging.INFO)
 memory = joblib.Memory(cachedir='.', verbose=2)
@@ -26,7 +24,8 @@ def compute_luminance_median(img):
 
 @memory.cache
 def extract_features(filename, feature_func, frame_start=0, frame_end=-1, dtype=np.float16):
-    image_source = imagesourcevideo.ImageSourceVideo(filename)
+    image_source = imagesource.VideoSource(filename)
+    image_source.color_conversion_from_bgr = None
     features = []
     if frame_end == -1:
         frame_end = int(image_source.frame_count)
@@ -78,7 +77,7 @@ def detect_events_in_video(filename, config=None):
                   'ramp_detection_thresh': 4,
                   }
     features = extract_features(filename, compute_luminance_median, dtype=np.uint8)
-    source = imagesourcetimedvideo.ImageSourceTimedVideo(filename)
+    source = imagesource.TimedVideoSource(filename)
     source.extract_timestamps()
     events = detect_events(features, source.timestamps_ms,
                   config['hidden_scanlines'],
@@ -414,8 +413,8 @@ class FlashVideoSynchronization(object):
         timing, frames, ref_timing = self.get_synchronized_frames(timestamps, master, perfect_master,
                                                                   dropped, max_sync_error)
         synchronized_sources = {
-            cam: imagesourcesynchronized.ImageSourceSynchronized(
-                sources[cam].filename,
+            cam: imagesource.SynchronizedSource(
+                sources[cam],
                 frames[:, cameras.index(cam)],
                 timing[:, cameras.index(cam)] - ref_timing)
             for cam in cameras}
@@ -429,7 +428,7 @@ if __name__ == '__main__':
     filenames = {cam: 'data/ice_hockey/%d.mp4' % cam for cam in cameras}
 
     # load video files and extract frame timestamps
-    sources = {cam: imagesourcetimedvideo.ImageSourceTimedVideo(filenames[cam])
+    sources = {cam: imagesource.TimedVideoSource(filenames[cam])
                for cam in cameras}
     for source in sources.itervalues():
         source.extract_timestamps()
