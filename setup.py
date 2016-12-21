@@ -8,7 +8,7 @@ except ImportError:
     read_md = lambda f: open(f, 'r').read()
 
 setup(
-    name='FlashVideoSynchronization',
+    name='flashvideosynchronization',
     version='1.0b1',
     author='Matěj Šmíd',
     url='https://github.com/smidm/flashvideosynchronization',
