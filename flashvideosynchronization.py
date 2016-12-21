@@ -1,5 +1,7 @@
 import os
 import logging
+import itertools
+import math
 import matplotlib.pylab as plt
 import matplotlib
 import numpy as np
@@ -18,24 +20,25 @@ logging.basicConfig(level=logging.INFO)
 memory = joblib.Memory(cachedir='.', verbose=2)
 
 
-def compute_luminance_median(img):
-    return np.median(cv2.cvtColor(img, cv2.COLOR_RGB2Lab)[:, :, 0], axis=1)
-
-
 @memory.cache
-def extract_features(filename, feature_func, frame_start=0, frame_end=-1, dtype=np.float16):
+def extract_features(filename, frame_start=0, frame_end=-1, dtype=np.float16):
     image_source = imagesource.VideoSource(filename)
-    image_source.color_conversion_from_bgr = None
+    image_source.color_conversion_from_bgr = cv2.COLOR_BGR2Lab
     features = []
     if frame_end == -1:
-        frame_end = int(image_source.frame_count)
+        if not math.isinf(image_source.frame_count):
+            frame_end = int(image_source.frame_count)
+            frame_range = xrange(frame_start, frame_end)
+        else:
+            frame_end = frame_start  # for logging
+            frame_range = itertools.count(start=frame_start)
     image_source.seek(frame_start)
-    for i, frame in enumerate(xrange(frame_start, frame_end)):
+    for i, frame in enumerate(frame_range):
         try:
             img = image_source.get_next_image()
         except IOError:
             break
-        features.append(feature_func(img))
+        features.append(np.median(img[:, :, 0], axis=1))
         if (i % 10) == 0:
             logging.info("%d / %d" % (i, frame_end - frame_start))
     return np.array(features, dtype=dtype).T
@@ -76,7 +79,7 @@ def detect_events_in_video(filename, config=None):
                   'diff_max_peak_thresh': 20,
                   'ramp_detection_thresh': 4,
                   }
-    features = extract_features(filename, compute_luminance_median, dtype=np.uint8)
+    features = extract_features(filename, dtype=np.uint8)
     source = imagesource.TimedVideoSource(filename)
     source.extract_timestamps()
     events = detect_events(features, source.timestamps_ms,
@@ -479,3 +482,4 @@ if __name__ == '__main__':
         plt.grid(False)
         plt.axis('off')
     plt.show()
+
