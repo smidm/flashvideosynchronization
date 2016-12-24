@@ -23,19 +23,25 @@ memory = joblib.Memory(cachedir='.', verbose=2)
 @memory.cache
 def extract_features(filename, frame_start=0, frame_end=-1, dtype=np.float16):
     image_source = imagesource.VideoSource(filename)
-    image_source.color_conversion_from_bgr = cv2.COLOR_BGR2Lab
+    return extract_features_from_source(image_source, frame_start, frame_end, dtype)
+
+
+def extract_features_from_source(source, frame_start, frame_end, dtype):
+    source.color_conversion_from_bgr = cv2.COLOR_BGR2Lab
     features = []
     if frame_end == -1:
-        if not math.isinf(image_source.frame_count):
-            frame_end = int(image_source.frame_count)
+        if not math.isinf(source.frame_count):
+            frame_end = int(source.frame_count)
             frame_range = xrange(frame_start, frame_end)
         else:
             frame_end = frame_start  # for logging
             frame_range = itertools.count(start=frame_start)
-    image_source.seek(frame_start)
+    else:
+        frame_range = xrange(frame_start, frame_end)
+    source.seek(frame_start)
     for i, frame in enumerate(frame_range):
         try:
-            img = image_source.get_next_image()
+            img = source.get_next_image()
         except IOError:
             break
         features.append(np.median(img[:, :, 0], axis=1))
