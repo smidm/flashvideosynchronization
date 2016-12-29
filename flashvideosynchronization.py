@@ -8,6 +8,7 @@ import numpy as np
 import scipy
 import cv2
 import joblib
+import yaml
 from sklearn import linear_model
 try:
     import seaborn as sns
@@ -21,12 +22,12 @@ memory = joblib.Memory(cachedir='.', verbose=2)
 
 
 @memory.cache
-def extract_features(filename, frame_start=0, frame_end=-1, dtype=np.float16):
+def extract_features(filename, frame_start=0, frame_end=-1):
     image_source = imagesource.VideoSource(filename)
-    return extract_features_from_source(image_source, frame_start, frame_end, dtype)
+    return extract_features_from_source(image_source, frame_start, frame_end)
 
 
-def extract_features_from_source(source, frame_start, frame_end, dtype):
+def extract_features_from_source(source, frame_start=0, frame_end=-1):
     source.color_conversion_from_bgr = cv2.COLOR_BGR2Lab
     features = []
     if frame_end == -1:
@@ -47,7 +48,7 @@ def extract_features_from_source(source, frame_start, frame_end, dtype):
         features.append(np.median(img[:, :, 0], axis=1))
         if (i % 10) == 0:
             logging.info("%d / %d" % (i, frame_end - frame_start))
-    return np.array(features, dtype=dtype).T
+    return np.array(features, dtype=np.uint8).T
 
 
 def ramp_detection(profile, ramp_detection_thresh=4):
@@ -85,7 +86,7 @@ def detect_events_in_video(filename, config=None):
                   'diff_max_peak_thresh': 20,
                   'ramp_detection_thresh': 4,
                   }
-    features = extract_features(filename, dtype=np.uint8)
+    features = extract_features(filename)
     source = imagesource.TimedVideoSource(filename)
     source.extract_timestamps()
     events = detect_events(features, source.timestamps_ms,
@@ -332,12 +333,13 @@ class FlashVideoSynchronization(object):
         model.fit(X, y)
         c = model.coef_[0]
 
+        self.base_cam = base_cam
         self.model = {}
-        self.model[base_cam] = {'time_per_row': c[0]}
+        self.model[base_cam] = {'time_per_row': float(c[0])}
         for i, cam in enumerate(set(cameras) - {base_cam}):
-            self.model[cam] = {'drift':     c[1 + i * 3 + 0],
-                               'shift':        c[1 + i * 3 + 1],
-                               'time_per_row': c[1 + i * 3 + 2],
+            self.model[cam] = {'drift':     float(c[1 + i * 3 + 0]),
+                               'shift':        float(c[1 + i * 3 + 1]),
+                               'time_per_row': float(c[1 + i * 3 + 2]),
                                }
 
     def get_time(self, cam, frame_time, row=None):
@@ -429,6 +431,17 @@ class FlashVideoSynchronization(object):
             for cam in cameras}
 
         return synchronized_sources
+
+    def save(self, filename):
+        with open(filename, 'w') as fw:
+            yaml.dump({'model': self.model, 'base_cam': self.base_cam}, fw)
+
+    def load(self, filename):
+        with open(filename, 'r') as fr:
+            data = yaml.load(fr)
+        self.model = data['model']
+        self.base_cam = data['base_cam']
+
 
 
 if __name__ == '__main__':
