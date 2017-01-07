@@ -359,21 +359,18 @@ class FlashVideoSynchronization(object):
         synchronized_timestamps = []
         synchronized_idx = []
         indices_after = np.searchsorted(timestamps, master_timestamps)
-        try:
-            for idx_after, t_master in zip(indices_after, master_timestamps):
-                t_slave_before = timestamps[idx_after - 1]
-                t_slave_after = timestamps[idx_after]
-                if min(abs(t_slave_before - t_master), abs(t_slave_after - t_master)) > max_sync_error:
-                    synchronized_timestamps.append(-1)
-                    synchronized_idx.append(-1)
-                elif abs(t_slave_before - t_master) < abs(t_slave_after - t_master):
-                    synchronized_timestamps.append(t_slave_before)
-                    synchronized_idx.append(idx_after - 1)
-                else:
-                    synchronized_timestamps.append(t_slave_after)
-                    synchronized_idx.append(idx_after)
-        except IndexError:
-            pass
+        for idx_after, t_master in zip(indices_after, master_timestamps):
+            t_slave_before = timestamps[idx_after - 1]
+            t_slave_after = timestamps[idx_after] if idx_after < len(timestamps) else np.inf
+            if min(abs(t_slave_before - t_master), abs(t_slave_after - t_master)) > max_sync_error:
+                synchronized_timestamps.append(-1)
+                synchronized_idx.append(-1)
+            elif abs(t_slave_before - t_master) < abs(t_slave_after - t_master):
+                synchronized_timestamps.append(t_slave_before)
+                synchronized_idx.append(idx_after - 1)
+            else:
+                synchronized_timestamps.append(t_slave_after)
+                synchronized_idx.append(idx_after)
 
         return np.array(synchronized_timestamps), np.array(synchronized_idx)
 
@@ -399,12 +396,6 @@ class FlashVideoSynchronization(object):
                                                                         ref_timing, max_sync_error)
             sync_timing[cam] = times
             sync_frames[cam] = frames
-
-        min_length = min([len(x) for x in sync_timing.values()])
-        ref_timing = ref_timing[:min_length]
-        for cam in cameras:
-            sync_timing[cam] = sync_timing[cam][:min_length]
-            sync_frames[cam] = sync_frames[cam][:min_length]
 
         sync_timing_array = np.vstack(sync_timing.values()).T
         sync_frames_array = np.vstack(sync_frames.values()).T.astype(int)
