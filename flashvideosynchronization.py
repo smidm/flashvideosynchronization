@@ -417,7 +417,7 @@ class FlashVideoSynchronization(object):
 
         return sync_timing_array, sync_frames_array, ref_timing
 
-    def get_synchronized_image_sources(self, sources, master=None, perfect_master=True, dropped=True, max_sync_error=None):
+    def get_synchronized_image_sources(self, sources, master=None, perfect_master=False, dropped=True, max_sync_error=None):
         assert self.model
         cameras = sources.keys()
         timestamps = {cam: sources[cam].timestamps_ms for cam in cameras}
