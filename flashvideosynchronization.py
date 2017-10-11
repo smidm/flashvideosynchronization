@@ -114,8 +114,7 @@ class FlashVideoSynchronization(object):
         cameras = list(self.events.keys())
         if offsets is None:
             offsets = {cam: 0 for cam in cameras}
-        event_times = {cam: self.events[cam]['time'] - offsets[cam]
-                         for cam in cameras}
+        event_times = {cam: self.events[cam]['time'] - offsets[cam] for cam in cameras}
         fig = plt.figure()
         if has_seaborn:
             colors = sns.color_palette(n_colors=len(cameras))
@@ -132,40 +131,93 @@ class FlashVideoSynchronization(object):
         if has_seaborn:
             sns.despine(fig)
 
-    def filter_events(self, obsolete_regions={}, override_good={}, override_bad={}, override_start={}):
-        # filter out wrong detections
+    def filter_events(self, img_heights_px,
+                      drop_events_on_top=False, drop_events_on_bottom=False, drop_longer_and_shorter=False,
+                      force_keep_frames={}, force_drop_frames={}, force_start={}, obsolete_regions={}):
+        """
+        Filter out wrongly detected events:
+
+        - events shorted than 0.9 or longer than 1.1 of the median event length
+        - events starting on the image top (partial events)
+        - events ending on the image bottom (partial events)
+        - events in override_bad
+
+        Fix events starts according to override_start.
+
+        :param img_heights_px: image height for all cameras, {cam: height_px, ... }
+        :param drop_events_on_top: drop events starting on the top (first row or first row after obsolete region)
+        :param drop_events_on_bottom: drop events ending at the bottom (last row or last row before obsolete region)
+        :param drop_longer_and_shorter: drop events of nonstandard length, apply only to events that are not split
+        :param force_keep_frames: force events to NOT BE filtered, {cam: [frame, frame, ...], cam: ... }
+        :param force_drop_frames: force events to BE filtered, {cam: [frame, frame, ...], cam: ... }
+        :param force_start: override event start, {cam: [(frame, horizontal position in px), ...], cam: ... }
+        :param obsolete_regions: ignored stripes on the top and/or image bottom,
+                                 {cam: {'top': top_px, 'bottom': bot_px}, ...}
+        """
+
+        # compute median event length in px for the cameras with the same img height
+        heights_px = set(img_heights_px.values())
+        median_event_length_px = {}
+        mask_events_not_split = {}
+        for height_px in heights_px:
+            uniform_height_cams = [cam for cam, h in img_heights_px.iteritems() if h == height_px]
+            events = []
+            for cam in uniform_height_cams:
+                if not obsolete_regions or cam not in obsolete_regions:
+                    obsolete_regions[cam] = {'top': 0, 'bottom': img_heights_px[cam]}
+                cam_events = self.events[cam]
+                mask_events_not_split[cam] = (cam_events['start'] > obsolete_regions[cam]['top']) & \
+                                             (cam_events['end'] < obsolete_regions[cam]['bottom'] - 1)
+                                             # ramp_detection() detects 'end' on -1
+                events.append(cam_events[mask_events_not_split[cam]])
+            uniform_height_events = np.concatenate(events)
+            median_event_length_px[height_px] = np.median(uniform_height_events['end'] -
+                                                          uniform_height_events['start'])
         events = {}
         for cam in self.events.keys():
             cam_events = self.events[cam]
-            mask_not_splitted_events = (cam_events['start'] > obsolete_regions[cam]['top']) & \
-                               (cam_events['end'] < obsolete_regions[cam]['bottom'])
-            event_length_px = np.median(cam_events[mask_not_splitted_events]['end'] -
-                                        cam_events[mask_not_splitted_events]['start'])
-            if not override_bad or cam not in override_bad or not override_bad[cam]:
-                override_bad_mask = np.zeros(len(cam_events), dtype=bool)
-            else:
-                override_bad_mask = np.any([cam_events['frame'] == frame for frame in override_bad[cam]], axis=0)
-            mask_bad = (~(cam_events['end'] == obsolete_regions[cam]['bottom']) &
-                        ((cam_events['end'] - cam_events['start']) < event_length_px * 0.9)) | \
-                        ((cam_events['end'] - cam_events['start']) > event_length_px * 1.1) | \
-                        (cam_events['start'] <= obsolete_regions[cam]['top']) | \
-                       override_bad_mask
+            override_bad_mask = self.__list2mask__(cam, cam_events['frame'], force_drop_frames)
+            override_good_mask = self.__list2mask__(cam, cam_events['frame'], force_keep_frames)
 
-            if not override_good or cam not in override_good or not override_good[cam]:
-                override_good_mask = np.zeros(len(cam_events), dtype=bool)
-            else:
-                override_good_mask = np.any([cam_events['frame'] == frame for frame in override_good[cam]], axis=0)
+            # filter out events
+            mask_bad = np.zeros(len(cam_events), dtype=bool)
+            if drop_events_on_top:
+                mask_bad |= cam_events['start'] <= obsolete_regions[cam]['top']
+            if drop_events_on_bottom:
+                mask_bad |= cam_events['end'] >= img_heights_px[cam] - 1
+
+            if drop_longer_and_shorter:
+                # apply filter only to the events that are not split (naturally shortened)
+                event_length_px = median_event_length_px[img_heights_px[cam]]
+                mask_bad |= mask_events_not_split[cam] & \
+                            (((cam_events['end'] - cam_events['start']) < event_length_px * 0.9) |
+                            ((cam_events['end'] - cam_events['start']) > event_length_px * 1.1))
+
+            mask_bad |= override_bad_mask
+
+            # force events to stay
             events[cam] = cam_events[~mask_bad | override_good_mask]
-            if override_start and cam in override_start:
-                for frame, start in override_start[cam]:
+            # override event start
+            if force_start and cam in force_start:
+                for frame, start in force_start[cam]:
                     idx = np.where(events[cam]['frame'] == frame)[0]
                     if idx:
                         events[cam][idx[0]]['start'] = start
         self.events = events
 
-    def save_event_images(self, sources, features, output_dir, cameras=None):
+    def __list2mask__(self, cam, items, items_list):
+        if not items_list or cam not in items_list or not items_list[cam]:
+            # when items_list not present, return empty (false) mask
+            return np.zeros(len(items), dtype=bool)
+        else:
+            # masked items in the list
+            return np.any([items == item for item in items_list[cam]], axis=0)
+
+    def save_event_images(self, sources, features, output_dir, cameras=None, frame_range=None):
         if cameras is None:
             cameras = sources.keys()
+        if frame_range is None:
+            frame_range = (0, np.inf)
         fig_width_in = 4
         fig_height_in = fig_width_in * 0.7
         params = {
@@ -177,6 +229,8 @@ class FlashVideoSynchronization(object):
         plt.rcParams.update(params)
         for cam in cameras:
             for e in self.events[cam]:
+                if not (frame_range[0] <= e['frame'] <= frame_range[1]):
+                    continue
                 fig = plt.figure()
                 fig.set_size_inches(fig_width_in * 2, fig_height_in * 2 * 0.6, forward=True)
                 self.plot_frame_with_profile(sources[cam].get_image(e['frame']), e['frame'], features[cam],
