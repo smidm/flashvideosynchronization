@@ -609,7 +609,7 @@ class FlashVideoSynchronization(object):
         :return: dict of synchronzed image sources, {camera: imagesource.SynchronizedSource, ...}
         """
         assert self.model
-        cameras = sources.keys()
+        cameras = list(sources.keys())
         timestamps = {cam: sources[cam].timestamps_ms for cam in cameras}
         timing, frames, ref_timing = self.get_synchronized_frames(timestamps, master, perfect_master,
                                                                   dropped, max_sync_error)
