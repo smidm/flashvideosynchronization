@@ -13,14 +13,6 @@ For details, sample synchronized videos and published paper see [project page](h
 
 ## Installation and Running
 
-Using a system package manager install:
-
-- numpy
-
-Compile or install:
-
-- OpenCV 3.x with ffmpeg
-
 ```
 $ pip install git+https://github.com/smidm/flashvideosynchronization.git
 ```
