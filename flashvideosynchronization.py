@@ -36,12 +36,12 @@ def extract_features_from_source(source, frame_start=0, frame_end=-1):
     if frame_end == -1:
         if not math.isinf(source.frame_count):
             frame_end = int(source.frame_count)
-            frame_range = xrange(frame_start, frame_end)
+            frame_range = range(frame_start, frame_end)
         else:
             frame_end = frame_start  # for logging
             frame_range = itertools.count(start=frame_start)
     else:
-        frame_range = xrange(frame_start, frame_end)
+        frame_range = range(frame_start, frame_end)
     source.seek(frame_start)
     for i, frame in enumerate(frame_range):
         try:
