@@ -1,11 +1,6 @@
 # -*- coding: utf-8 -*-
 from setuptools import setup
-try:
-    from pypandoc import convert
-    read_md = lambda f: convert(f, 'rst')
-except ImportError:
-    print("warning: pypandoc module not found, could not convert Markdown to RST")
-    read_md = lambda f: open(f, 'r').read()
+
 
 setup(
     name='flashvideosynchronization',
@@ -28,7 +23,7 @@ setup(
     ],    
     keywords='video synchronization',
     py_modules=['flashvideosynchronization'],
-    install_requires=['git+https://github.com/smidm/imagesource.git', 'sklearn', 'joblib', 'numpy', 'matplotlib', 'scipy'],
+    install_requires=['imagesource', 'sklearn', 'joblib', 'numpy', 'matplotlib', 'scipy', 'pyyaml', 'opencv-python'],
     extras_require={'visualization': 'seaborn'},
 )
 
