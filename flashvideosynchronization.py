@@ -21,7 +21,7 @@ import imagesource
 
 
 logging.basicConfig(level=logging.INFO)
-memory = joblib.Memory(cachedir='.', verbose=2)
+memory = joblib.Memory(location='.', verbose=2)
 
 
 @memory.cache
