@@ -10,6 +10,7 @@ import scipy
 import cv2
 import joblib
 import yaml
+import json
 from sklearn import linear_model
 from functools import reduce
 try:
@@ -124,6 +125,24 @@ class FlashVideoSynchronization(object):
         self.DIFFMAX_PEAK_THRESH = 20
         self.RAMP_DETECTION_DIFF = 4
         self.MATCH_EVENTS_CLOSENESS_MS = 80  # 35
+
+    def __str__(self):
+        s = ''
+        model_description = self.model_description()
+        for cam in self.model:
+            s += 'camera {}: {}\n'.format(cam, model_description[cam])
+        return s
+
+    def model_description(self):
+        model_description = {}
+        for cam, model_params in self.model.items():
+            s = ''
+            if 'shift' in model_params:
+                s += 'time offset {:.2f} s, sensor clock drift {:.4f}, '.format(model_params['shift'] / 1000,
+                                                                                model_params['drift'])
+            s += 'time per sensor row {time_per_row:.3f} ms'.format(**model_params)
+            model_description[cam] = s
+        return model_description
 
     def detect_flash_events(self, filenames):
         """
@@ -629,13 +648,19 @@ class FlashVideoSynchronization(object):
 
         return synchronized_sources
 
-    def save(self, filename):
-        with open(filename, 'w') as fw:
-            yaml.dump({'model': self.model, 'base_cam': self.base_cam}, fw)
+    def to_json(self):
+        return json.dumps({'model': self.model, 'base_cam': self.base_cam})
 
-    def load(self, filename):
-        with open(filename, 'r') as fr:
-            data = yaml.load(fr)
+    def to_yaml(self):
+        return yaml.dump({'model': self.model, 'base_cam': self.base_cam})
+
+    def from_yaml(self, s):
+        data = yaml.load(s)
         self.model = data['model']
         self.base_cam = data['base_cam']
+
+    def from_json(self, s):
+        data = json.loads(s)
+        self.base_cam = data['base_cam']
+        self.model = {int(k): v for k, v in data['model'].items()}
 
