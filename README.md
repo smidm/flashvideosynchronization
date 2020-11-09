@@ -17,6 +17,19 @@ For details, sample synchronized videos and published paper see [project page](h
 pip install git+https://github.com/smidm/flashvideosynchronization.git
 ```
 
+## Download Sample Videos
+
+Three videos with duration ~60 seconds containing multiple camera flashes. Started manually. One camera was
+recording upside down. 
+
+```
+curl -LO http://cmp.felk.cvut.cz/~smidm/download/sample_data.zip
+unzip sample_data.zip
+rm sample_data.zip
+```
+
+size: ~200 MB
+
 ## CLI
 
 Command line tool for video synchronization. Features: 
@@ -74,14 +87,6 @@ $ synchronizevideo --write-preview montage.mp4 sample_data/*
 ```
 
 ![frame from synchronized preview](assets/montage.jpg)
-
-## Download Sample Data
-
-```
-curl -LO http://cmp.felk.cvut.cz/~smidm/download/sample_data.zip
-unzip sample_data.zip
-rm sample_data.zip
-```
 
 ## API
 
