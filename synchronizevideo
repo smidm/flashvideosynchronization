@@ -44,13 +44,15 @@ sync = FlashVideoSynchronization()
 sync.detect_flash_events(filenames)
 
 matching_events = {cam: 0 for cam in range(n_inputs)}
+# matching_events = {0: 6, 1: 17, 2: 4, 3: 4}  # ice hockey dataset
 offsets = {
     cam: sync.events[cam][matching_events[cam]]["frame_time"] for cam in range(n_inputs)
 }
 
 if args.show_flashes:
-    sync.show_events(title="before synchronization")
-    sync.show_events(offsets, title="after synchronization")
+    # shows only positive edges
+    sync.show_events(title="before alignment")
+    sync.show_events(offsets, title="after alignment")
     plt.show()
 
 sync.synchronize(offsets.keys(), offsets, base_cam=0)
