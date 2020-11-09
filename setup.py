@@ -22,8 +22,10 @@ setup(
         'Programming Language :: Python :: 3.7',
     ],    
     keywords='video synchronization',
-    py_modules=['flashvideosynchronization'],
-    install_requires=['imagesource', 'sklearn', 'joblib', 'numpy', 'matplotlib', 'scipy', 'pyyaml', 'opencv-python'],
+    py_modules=['flashvideosynchronization', 'montage'],
+    install_requires=['imagesource', 'sklearn', 'joblib', 'numpy', 'matplotlib', 'scipy', 'pyyaml', 'opencv-python',
+                      'tqdm'],
     extras_require={'visualization': 'seaborn'},
+    scripts=['synchronizevideo']
 )
 
