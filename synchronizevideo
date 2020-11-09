@@ -1,0 +1,78 @@
+#!/usr/bin/env python
+import os
+import argparse
+import cv2
+from tqdm import tqdm
+import matplotlib.pylab as plt
+import imagesource
+from flashvideosynchronization import FlashVideoSynchronization
+from montage import Montage
+
+
+parser = argparse.ArgumentParser(description='Convert and visualize mot ground truth and results.',
+                                 epilog='use --project and --project-save-dir to convert project format')
+parser.add_argument('files', nargs='+', type=str, help='input video files')
+parser.add_argument('--write-preview', type=str, help='write synchronized preview montage')
+parser.add_argument('--out-synchronized-dir', type=str, help='write input files synchronized to a directory')
+parser.add_argument('--show-flashes', action='store_true', help='show a chart with detected flashes')
+parser.add_argument('--save-synchronization-meta-dir', type=str,
+                    help='save FlashVideoSynchronization and SynchronizedSource(s) to a directory')
+args = parser.parse_args()
+n_inputs = len(args.files)
+filenames = {i: filename for i, filename in enumerate(args.files)}
+
+if n_inputs < 2:
+    parser.error('provide at least two input video files')
+
+# detect flash events
+sync = FlashVideoSynchronization()
+sync.detect_flash_events(filenames)
+matching_events = {cam: 0 for cam in range(n_inputs)}
+
+if args.show_flashes:
+    sync.show_events()
+    plt.show()
+
+offsets = {cam: sync.events[cam][matching_events[cam]]['frame_time'] for cam in range(n_inputs)}
+sync.synchronize(offsets.keys(), offsets, base_cam=0)
+
+# load video files and extract frame timestamps
+sources = {}
+for cam, filename in filenames.items():
+    sources[cam] = imagesource.TimedVideoSource(filename)
+    sources[cam].extract_timestamps()
+
+# get frame synchronized image sources
+sources_sync = sync.get_synchronized_image_sources(sources, master=0, dropped=False)  # , perfect_master=False)
+
+if args.write_preview:
+    for source in sources_sync.values():
+        source.rewind()
+        source.source.color_conversion_from_bgr = None
+
+    frame_size = (1920, 1080)
+    montage = Montage(frame_size, (2, 2))
+    fourcc = cv2.VideoWriter_fourcc(*'mp4v')
+    # TODO: change to synchronized fps
+    video_writer = cv2.VideoWriter(args.write_preview, cv2.CAP_FFMPEG, fourcc, sources[0].fps(), frame_size)
+    for _ in tqdm(range(len(sources_sync[0].frame_lookup_table))):
+        imgs = [source.get_next_image() for source in sources_sync.values()]
+        out_img = montage.montage(imgs)
+        video_writer.write(out_img)
+    video_writer.release()
+
+if args.out_synchronized_dir:
+    fourcc = cv2.VideoWriter_fourcc(*'mp4v')
+    for source in sources_sync.values():
+        source.rewind()
+        source.source.color_conversion_from_bgr = None
+    for cam in tqdm(sources_sync):
+        img_width_height = sources[cam].get_next_image().shape[:2][::-1]
+
+        # TODO: change to synchronized fps
+        video_writer = cv2.VideoWriter(
+            os.path.join(args.out_synchronized_dir, os.path.basename(filenames[cam])),
+            cv2.CAP_FFMPEG, fourcc, sources[0].fps(), img_width_height)
+        for _ in tqdm(range(len(sources_sync[cam].frame_lookup_table))):
+            video_writer.write(sources_sync[cam].get_next_image())
+        video_writer.release()
