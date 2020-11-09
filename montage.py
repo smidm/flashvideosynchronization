@@ -75,5 +75,5 @@ class Montage(object):
             x = int(i % self.nm[0]) * int(self.cell_size[0])
             y = int(i / self.nm[0]) * int(self.cell_size[1])
             imgw, imgh = self.sizes[i]
-            out[y : y + imgh, x : x + imgw] = images_resized[i]
+            out[y:y + imgh, x:x + imgw] = images_resized[i]
         return out

@@ -106,9 +106,9 @@ def detect_events(
 
     # merge events split between two frames
     idx_bottom = np.nonzero(
-        (events["position_px"] == (height_px - 1)) & (events["positive"] == False)
+        (events["position_px"] == (height_px - 1)) & (events["positive"] is False)
     )[0]
-    idx_top = np.nonzero((events["position_px"] == 0) & (events["positive"] == True))[0]
+    idx_top = np.nonzero((events["position_px"] == 0) & (events["positive"] is True))[0]
     to_delete = []
     for idx in idx_bottom:
         if (
@@ -330,7 +330,7 @@ class FlashVideoSynchronization(object):
             # override event position
             if force_position and cam in force_position:
                 for row in force_position[cam]:
-                    query = rec_drop_fields(force_position[cam], ["position_px",])
+                    query = rec_drop_fields(force_position[cam], ["position_px"])
                     idxs = np.nonzero(self.__queries2mask__(events[cam], query))[0]
                     if len(idxs) == 0:
                         logging.warning(
@@ -439,8 +439,8 @@ class FlashVideoSynchronization(object):
 
         ax = plt.subplot(gs[1], sharey=ax1)
         plt.title("median line\nintensity")
-        plt.plot(features[:, frame_nr], range(height), label="$\mathrm{I}_n$")
-        plt.plot(features[:, frame_nr - 1], range(height), label="$\mathrm{I}_{n-1}$")
+        plt.plot(features[:, frame_nr], range(height), label=r"$\mathrm{I}_n$")
+        plt.plot(features[:, frame_nr - 1], range(height), label=r"$\mathrm{I}_{n-1}$")
         plot_position_line(position_px, positive)
         set_axes_and_legend(ax)
 
@@ -450,13 +450,13 @@ class FlashVideoSynchronization(object):
             features[:, frame_nr].astype(float)
             - features[:, frame_nr - 1].astype(float),
             range(height),
-            label="$\mathrm{I}_n - \mathrm{I}_{n-1}$",
+            label=r"$\mathrm{I}_n - \mathrm{I}_{n-1}$",
         )
         plt.plot(
             features[:, frame_nr - 1].astype(float)
             - features[:, frame_nr - 2].astype(float),
             range(height),
-            label="$\mathrm{I}_{n-1} - \mathrm{I}_{n-2}$",
+            label=r"$\mathrm{I}_{n-1} - \mathrm{I}_{n-2}$",
         )
         plot_position_line(position_px, positive)
         set_axes_and_legend(ax)
