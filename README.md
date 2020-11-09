@@ -37,15 +37,15 @@ Command line tool for video synchronization. Features:
 - show detected flashes
 - write a preview video montage of synchronized videos
 - write synchronized videos 
+- show video files time offsets and other synchronization model parameters 
 
 ```
 usage: synchronizevideo [-h] [--write-preview WRITE_PREVIEW]
                         [--out-synchronized-dir OUT_SYNCHRONIZED_DIR]
-                        [--show-flashes]
-                        [--save-synchronization-meta-dir SAVE_SYNCHRONIZATION_META_DIR]
+                        [--show-flashes] [--model-json] [--model-yaml]
                         files [files ...]
 
-Convert and visualize mot ground truth and results.
+Synchronize multiple video files containing camera flashes.
 
 positional arguments:
   files                 input video files
@@ -57,10 +57,8 @@ optional arguments:
   --out-synchronized-dir OUT_SYNCHRONIZED_DIR
                         write input files synchronized to a directory
   --show-flashes        show a chart with detected flashes
-  --save-synchronization-meta-dir SAVE_SYNCHRONIZATION_META_DIR
-                        save FlashVideoSynchronization and
-                        SynchronizedSource(s) to a directory
-
+  --model-json          print synchronization model in json
+  --model-yaml          print synchronization model in yaml
 ```
 
 Examples:
@@ -71,6 +69,9 @@ $ synchronizevideo --show-flashes sample_data/*
 [Memory]0.0s, 0.0min    : Loading detect_events_in_video...
 [Memory]0.0s, 0.0min    : Loading detect_events_in_video...
 [Memory]0.0s, 0.0min    : Loading detect_events_in_video...
+sample_data/1.mp4: time per sensor row 0.039 ms
+sample_data/2.mp4: time offset -10.68 s, sensor clock drift 0.9997, time per sensor row 0.017 ms
+sample_data/3.mp4: time offset -4.98 s, sensor clock drift 1.0002, time per sensor row 0.036 ms
 ```
 
 ![detected flashes in input video files](assets/detected_flashes.png)
@@ -81,9 +82,13 @@ $ synchronizevideo --write-preview montage.mp4 sample_data/*
 [Memory]0.0s, 0.0min    : Loading detect_events_in_video...
 [Memory]0.0s, 0.0min    : Loading detect_events_in_video...
 [Memory]0.0s, 0.0min    : Loading detect_events_in_video...
-  0%|                                                                                                                                             | 0/576 [00:00<?, ?it/s]/home/matej/Private/Dropbox/prace/github/imagesource/imagesource/video.py:115: UserWarning: using slow but frame accurate seeking (reading frame by frame)
+sample_data/1.mp4: time per sensor row 0.039 ms
+sample_data/2.mp4: time offset -10.68 s, sensor clock drift 0.9997, time per sensor row 0.017 ms
+sample_data/3.mp4: time offset -4.98 s, sensor clock drift 1.0002, time per sensor row 0.036 ms
+  0%|                                                                                           | 0/576 [00:00<?, ?it/s]
+.../imagesource/video.py:115: UserWarning: using slow but frame accurate seeking (reading frame by frame)
   warn('using slow but frame accurate seeking (reading frame by frame)')
-100%|███████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████| 576/576 [00:15<00:00, 36.92it/s]
+100%|█████████████████████████████████████████████████████████████████████████████████| 576/576 [00:15<00:00, 36.92it/s]
 ```
 
 ![frame from synchronized preview](assets/montage.jpg)
@@ -116,6 +121,7 @@ sync.show_events(offsets)  # now the events should appear aligned
 
 # synchronize cameras: find parameters transformations that map camera time to reference camera time
 sync.synchronize(cameras, offsets, base_cam=1)
+print(sync)
 
 # get sub-frame sychronized time for camera 1, frame 10 and row 100
 print(sync.get_time(cam=1, frame_time=sources[1].timestamps_ms[10], row=100))

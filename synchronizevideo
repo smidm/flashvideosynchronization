@@ -9,20 +9,21 @@ from flashvideosynchronization import FlashVideoSynchronization
 from montage import Montage
 
 
-parser = argparse.ArgumentParser(description='Convert and visualize mot ground truth and results.',
-                                 epilog='use --project and --project-save-dir to convert project format')
+parser = argparse.ArgumentParser(description='Synchronize multiple video files containing camera flashes.')
 parser.add_argument('files', nargs='+', type=str, help='input video files')
 parser.add_argument('--write-preview', type=str, help='write synchronized preview montage')
 parser.add_argument('--out-synchronized-dir', type=str, help='write input files synchronized to a directory')
 parser.add_argument('--show-flashes', action='store_true', help='show a chart with detected flashes')
-parser.add_argument('--save-synchronization-meta-dir', type=str,
-                    help='save FlashVideoSynchronization and SynchronizedSource(s) to a directory')
+parser.add_argument('--model-json', action='store_true', help='print synchronization model in json')
+parser.add_argument('--model-yaml', action='store_true', help='print synchronization model in yaml')
+# parser.add_argument('--save-synchronization-meta-dir', type=str,
+#                     help='save FlashVideoSynchronization and SynchronizedSource(s) to a directory')
 args = parser.parse_args()
 n_inputs = len(args.files)
-filenames = {i: filename for i, filename in enumerate(args.files)}
-
 if n_inputs < 2:
     parser.error('provide at least two input video files')
+
+filenames = {i: filename for i, filename in enumerate(args.files)}
 
 # detect flash events
 sync = FlashVideoSynchronization()
@@ -35,6 +36,15 @@ if args.show_flashes:
 
 offsets = {cam: sync.events[cam][matching_events[cam]]['frame_time'] for cam in range(n_inputs)}
 sync.synchronize(offsets.keys(), offsets, base_cam=0)
+model_description = sync.model_description()
+for cam in range(n_inputs):
+    print('{}: {}'.format(filenames[cam], model_description[cam]))
+
+if args.model_json:
+    print(sync.to_json())
+
+if args.model_yaml:
+    print(sync.to_yaml())
 
 # load video files and extract frame timestamps
 sources = {}
