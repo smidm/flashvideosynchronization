@@ -42,15 +42,17 @@ filenames = {i: filename for i, filename in enumerate(args.files)}
 # detect flash events
 sync = FlashVideoSynchronization()
 sync.detect_flash_events(filenames)
+
 matching_events = {cam: 0 for cam in range(n_inputs)}
-
-if args.show_flashes:
-    sync.show_events()
-    plt.show()
-
 offsets = {
     cam: sync.events[cam][matching_events[cam]]["frame_time"] for cam in range(n_inputs)
 }
+
+if args.show_flashes:
+    sync.show_events(title="before synchronization")
+    sync.show_events(offsets, title="after synchronization")
+    plt.show()
+
 sync.synchronize(offsets.keys(), offsets, base_cam=0)
 model_description = sync.model_description()
 for cam in range(n_inputs):

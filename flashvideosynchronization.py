@@ -195,7 +195,7 @@ class FlashVideoSynchronization(object):
         }
 
     def show_events(
-        self, offsets=None, positive=True, negative=False, xticks_seconds=True
+        self, offsets=None, positive=True, negative=False, xticks_seconds=True, title=None
     ):
         """
         TODO: plot estimated sub-frame time instead of frame time (use frame duration and image height)
@@ -205,6 +205,8 @@ class FlashVideoSynchronization(object):
         if offsets is None:
             offsets = {cam: 0 for cam in cameras}
         fig = plt.figure()
+        if title is not None:
+            plt.title(title)
         if has_seaborn:
             colors = sns.color_palette(n_colors=len(cameras))
         else:
