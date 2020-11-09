@@ -13,8 +13,10 @@ import yaml
 import json
 from sklearn import linear_model
 from functools import reduce
+
 try:
     import seaborn as sns
+
     has_seaborn = True
 except ImportError:
     has_seaborn = False
@@ -22,7 +24,7 @@ import imagesource
 
 
 logging.basicConfig(level=logging.INFO)
-memory = joblib.Memory(location='.', verbose=2)
+memory = joblib.Memory(location=".", verbose=2)
 
 
 @memory.cache
@@ -68,7 +70,13 @@ def ramp_detection(profile, ramp_detection_thresh=4):
     return start, end
 
 
-def detect_events(features2d, timestamps, hidden_scanlines=0, diff_max_peak_thresh=20, ramp_detection_thresh=4):
+def detect_events(
+    features2d,
+    timestamps,
+    hidden_scanlines=0,
+    diff_max_peak_thresh=20,
+    ramp_detection_thresh=4,
+):
     diff = np.diff(features2d.astype(float), axis=1)
     height_px = features2d.shape[0]
     diff_max = np.max(diff, axis=0)
@@ -80,67 +88,90 @@ def detect_events(features2d, timestamps, hidden_scanlines=0, diff_max_peak_thre
         if not np.isnan(start):
             events.append((frame, start, timestamps[frame], True))
         else:
-            logging.warning('unable to detect event start in frame %d' % frame)
+            logging.warning("unable to detect event start in frame %d" % frame)
         if not np.isnan(end):
             events.append((frame, end, timestamps[frame], False))
         else:
-            logging.warning('unable to detect event end in frame %d' % frame)
+            logging.warning("unable to detect event end in frame %d" % frame)
 
-    events = np.array(events, dtype=[('frame', int), ('position_px', float),
-                                     ('frame_time', float), ('positive', np.bool)])
+    events = np.array(
+        events,
+        dtype=[
+            ("frame", int),
+            ("position_px", float),
+            ("frame_time", float),
+            ("positive", np.bool),
+        ],
+    )
 
     # merge events split between two frames
-    idx_bottom = np.nonzero((events['position_px'] == (height_px - 1)) & (events['positive'] == False))[0]
-    idx_top = np.nonzero((events['position_px'] == 0) & (events['positive'] == True))[0]
+    idx_bottom = np.nonzero(
+        (events["position_px"] == (height_px - 1)) & (events["positive"] == False)
+    )[0]
+    idx_top = np.nonzero((events["position_px"] == 0) & (events["positive"] == True))[0]
     to_delete = []
     for idx in idx_bottom:
-        if idx + 1 < len(events) and events[idx]['frame'] + 1 == events[idx + 1]['frame'] and idx + 1 in idx_top:
+        if (
+            idx + 1 < len(events)
+            and events[idx]["frame"] + 1 == events[idx + 1]["frame"]
+            and idx + 1 in idx_top
+        ):
             to_delete.extend([idx, idx + 1])
     return np.delete(events, to_delete)
+
 
 @memory.cache
 def detect_events_in_video(filename, config=None):
     if not config:
-        config = {'hidden_scanlines': 0,
-                  'diff_max_peak_thresh': 20,
-                  'ramp_detection_thresh': 4,
-                  }
+        config = {
+            "hidden_scanlines": 0,
+            "diff_max_peak_thresh": 20,
+            "ramp_detection_thresh": 4,
+        }
     features = extract_features(filename)
     source = imagesource.TimedVideoSource(filename)
     source.extract_timestamps()
-    events = detect_events(features, source.timestamps_ms,
-                  config['hidden_scanlines'],
-                  config['diff_max_peak_thresh'],
-                  config['ramp_detection_thresh'])
+    events = detect_events(
+        features,
+        source.timestamps_ms,
+        config["hidden_scanlines"],
+        config["diff_max_peak_thresh"],
+        config["ramp_detection_thresh"],
+    )
 
     return events
 
 
 class FlashVideoSynchronization(object):
     def __init__(self):
-        self.events = {}    # dict of record arrays, dtype=[('frame', int), ('position_px', float),
-                            #                               ('frame_time', float), ('positive', np.bool)]
-        self.model = {}  # {cam: {'shift': x in ms, 'time_per_row':  y in ms, 'drift': z}, ...}
+        self.events = (
+            {}
+        )  # dict of record arrays, dtype=[('frame', int), ('position_px', float),
+        #                               ('frame_time', float), ('positive', np.bool)]
+        self.model = (
+            {}
+        )  # {cam: {'shift': x in ms, 'time_per_row':  y in ms, 'drift': z}, ...}
         self.base_cam = None
         self.DIFFMAX_PEAK_THRESH = 20
         self.RAMP_DETECTION_DIFF = 4
         self.MATCH_EVENTS_CLOSENESS_MS = 80  # 35
 
     def __str__(self):
-        s = ''
+        s = ""
         model_description = self.model_description()
         for cam in self.model:
-            s += 'camera {}: {}\n'.format(cam, model_description[cam])
+            s += "camera {}: {}\n".format(cam, model_description[cam])
         return s
 
     def model_description(self):
         model_description = {}
         for cam, model_params in self.model.items():
-            s = ''
-            if 'shift' in model_params:
-                s += 'time offset {:.2f} s, sensor clock drift {:.4f}, '.format(model_params['shift'] / 1000,
-                                                                                model_params['drift'])
-            s += 'time per sensor row {time_per_row:.3f} ms'.format(**model_params)
+            s = ""
+            if "shift" in model_params:
+                s += "time offset {:.2f} s, sensor clock drift {:.4f}, ".format(
+                    model_params["shift"] / 1000, model_params["drift"]
+                )
+            s += "time per sensor row {time_per_row:.3f} ms".format(**model_params)
             model_description[cam] = s
         return model_description
 
@@ -153,13 +184,19 @@ class FlashVideoSynchronization(object):
         :param filenames: {cam: filename, ...}
         """
         # cashed using joblib.Memory
-        config = {'hidden_scanlines': 0,
-                  'diff_max_peak_thresh': self.DIFFMAX_PEAK_THRESH,
-                  'ramp_detection_thresh': self.RAMP_DETECTION_DIFF,
-                  }
-        self.events = {cam: detect_events_in_video(filename, config) for cam, filename in filenames.items()}
+        config = {
+            "hidden_scanlines": 0,
+            "diff_max_peak_thresh": self.DIFFMAX_PEAK_THRESH,
+            "ramp_detection_thresh": self.RAMP_DETECTION_DIFF,
+        }
+        self.events = {
+            cam: detect_events_in_video(filename, config)
+            for cam, filename in filenames.items()
+        }
 
-    def show_events(self, offsets=None, positive=True, negative=False, xticks_seconds=True):
+    def show_events(
+        self, offsets=None, positive=True, negative=False, xticks_seconds=True
+    ):
         """
         TODO: plot estimated sub-frame time instead of frame time (use frame duration and image height)
         """
@@ -174,30 +211,60 @@ class FlashVideoSynchronization(object):
             colors = None
 
         if positive:
-            event_frame_times = {cam: [e['frame_time'] - offsets[cam] for e in self.events[cam] if e['positive']]
-                                       for cam in cameras}
-            plt.eventplot(list(event_frame_times.values()), colors=colors, linelengths=0.95)
+            event_frame_times = {
+                cam: [
+                    e["frame_time"] - offsets[cam]
+                    for e in self.events[cam]
+                    if e["positive"]
+                ]
+                for cam in cameras
+            }
+            plt.eventplot(
+                list(event_frame_times.values()), colors=colors, linelengths=0.95
+            )
         if negative:
-            event_frame_times = {cam: [e['frame_time'] - offsets[cam] for e in self.events[cam] if not e['positive']]
-                                       for cam in cameras}
-            plt.eventplot(event_frame_times.values(), colors=colors, linelengths=0.95, linestyles='dotted')
+            event_frame_times = {
+                cam: [
+                    e["frame_time"] - offsets[cam]
+                    for e in self.events[cam]
+                    if not e["positive"]
+                ]
+                for cam in cameras
+            }
+            plt.eventplot(
+                event_frame_times.values(),
+                colors=colors,
+                linelengths=0.95,
+                linestyles="dotted",
+            )
         plt.yticks(np.arange(len(cameras)), cameras)
-        plt.ylabel('cameras')
+        plt.ylabel("cameras")
         max_time = max([max(t) for t in event_frame_times.values()])
         if xticks_seconds:
-            plt.xticks(np.arange(0, max_time, step=50000),
-                       (np.arange(0, max_time, step=50000) / 1000).astype(int))
-            plt.xlabel('time in seconds')
+            plt.xticks(
+                np.arange(0, max_time, step=50000),
+                (np.arange(0, max_time, step=50000) / 1000).astype(int),
+            )
+            plt.xlabel("time in seconds")
         else:
-            plt.xlabel('time in milliseconds')
+            plt.xlabel("time in milliseconds")
         plt.tight_layout(pad=0)
         if has_seaborn:
             sns.despine(fig)
 
-    def filter_events(self, img_heights_px,
-                      drop_events_on_top=False, drop_events_on_bottom=False, drop_longer_and_shorter=False,
-                      drop_positive=False, drop_negative=False,
-                      force_keep={}, force_drop={}, force_position={}, obsolete_regions={}):
+    def filter_events(
+        self,
+        img_heights_px,
+        drop_events_on_top=False,
+        drop_events_on_bottom=False,
+        drop_longer_and_shorter=False,
+        drop_positive=False,
+        drop_negative=False,
+        force_keep={},
+        force_drop={},
+        force_position={},
+        obsolete_regions={},
+    ):
         """
         Filter out wrongly detected events:
 
@@ -227,19 +294,27 @@ class FlashVideoSynchronization(object):
         events = {}
         for cam in self.events.keys():
             cam_events = self.events[cam]
-            override_bad_mask = self.__queries2mask__(cam_events, force_drop[cam] if cam in force_drop else None)
-            override_good_mask = self.__queries2mask__(cam_events, force_keep[cam] if cam in force_keep else None)
+            override_bad_mask = self.__queries2mask__(
+                cam_events, force_drop[cam] if cam in force_drop else None
+            )
+            override_good_mask = self.__queries2mask__(
+                cam_events, force_keep[cam] if cam in force_keep else None
+            )
 
             # filter out events
             mask_bad = np.zeros(len(cam_events), dtype=bool)
             if drop_events_on_top:
-                mask_bad |= (cam_events['position_px'] <= obsolete_regions[cam]['top']) & cam_events['positive']
+                mask_bad |= (
+                    cam_events["position_px"] <= obsolete_regions[cam]["top"]
+                ) & cam_events["positive"]
             if drop_events_on_bottom:
-                mask_bad |= (cam_events['position_px'] >= img_heights_px[cam] - 1) & ~cam_events['positive']
+                mask_bad |= (
+                    cam_events["position_px"] >= img_heights_px[cam] - 1
+                ) & ~cam_events["positive"]
             if drop_positive:
-                mask_bad |= cam_events['positive']
+                mask_bad |= cam_events["positive"]
             if drop_negative:
-                mask_bad |= ~cam_events['positive']
+                mask_bad |= ~cam_events["positive"]
 
             # if drop_longer_and_shorter:
             #     # apply filter only to the events that are not split (naturally shortened)
@@ -255,14 +330,19 @@ class FlashVideoSynchronization(object):
             # override event position
             if force_position and cam in force_position:
                 for row in force_position[cam]:
-                    query = rec_drop_fields(force_position[cam], ['position_px', ])
+                    query = rec_drop_fields(force_position[cam], ["position_px",])
                     idxs = np.nonzero(self.__queries2mask__(events[cam], query))[0]
                     if len(idxs) == 0:
-                        logging.warning('force_position can''t find a matching event: %s' % str(query))
+                        logging.warning(
+                            "force_position can"
+                            "t find a matching event: %s" % str(query)
+                        )
                     elif len(idxs) > 1:
-                        logging.warning('force_position ambiguous match for query: %s' % str(query))
+                        logging.warning(
+                            "force_position ambiguous match for query: %s" % str(query)
+                        )
                     else:
-                        events[cam][idxs[0]]['position_px'] = row['position_px']
+                        events[cam][idxs[0]]["position_px"] = row["position_px"]
 
         self.events = events
 
@@ -278,13 +358,17 @@ class FlashVideoSynchronization(object):
             # masked items in the list
             masks = []
             for row in queries:
-                masks.append(np.all([table[col] == row[col] for col in row.dtype.names], axis=0))
+                masks.append(
+                    np.all([table[col] == row[col] for col in row.dtype.names], axis=0)
+                )
             return reduce(np.logical_or, masks)
         else:
             # when queries not present, return empty (false) mask
             return np.zeros(len(table), dtype=bool)
 
-    def save_event_images(self, sources, features, output_dir, cameras=None, frame_range=None):
+    def save_event_images(
+        self, sources, features, output_dir, cameras=None, frame_range=None
+    ):
         if cameras is None:
             cameras = sources.keys()
         if frame_range is None:
@@ -292,61 +376,88 @@ class FlashVideoSynchronization(object):
         fig_width_in = 4
         fig_height_in = fig_width_in * 0.7
         params = {
-            'figure.figsize': [fig_width_in, fig_height_in],
-            'figure.dpi': 80,
-            'savefig.dpi': 150,
-            'font.size': 5,
+            "figure.figsize": [fig_width_in, fig_height_in],
+            "figure.dpi": 80,
+            "savefig.dpi": 150,
+            "font.size": 5,
         }
         plt.rcParams.update(params)
         for cam in cameras:
             for e in self.events[cam]:
-                if not (frame_range[0] <= e['frame'] <= frame_range[1]):
+                if not (frame_range[0] <= e["frame"] <= frame_range[1]):
                     continue
                 fig = plt.figure()
-                fig.set_size_inches(fig_width_in * 2, fig_height_in * 2 * 0.6, forward=True)
-                self.plot_frame_with_profile(sources[cam].get_image(e['frame']), e['frame'], features[cam],
-                                             e['position_px'], e['positive'])
-                plt.savefig(os.path.join(output_dir, 'c%s_f%d_%dpx.jpg' % (str(cam), e['frame'], e['position_px'])))
+                fig.set_size_inches(
+                    fig_width_in * 2, fig_height_in * 2 * 0.6, forward=True
+                )
+                self.plot_frame_with_profile(
+                    sources[cam].get_image(e["frame"]),
+                    e["frame"],
+                    features[cam],
+                    e["position_px"],
+                    e["positive"],
+                )
+                plt.savefig(
+                    os.path.join(
+                        output_dir,
+                        "c%s_f%d_%dpx.jpg" % (str(cam), e["frame"], e["position_px"]),
+                    )
+                )
                 plt.close(fig)
 
-    def plot_frame_with_profile(self, img, frame_nr, features, position_px=None, positive=None):
+    def plot_frame_with_profile(
+        self, img, frame_nr, features, position_px=None, positive=None
+    ):
         def plot_position_line(position_px, positive):
             if position_px is not None:
-                plt.hlines(position_px, plt.xlim()[0], plt.xlim()[1], 'r',
-                           linestyles='dotted' if positive else 'dashed')
+                plt.hlines(
+                    position_px,
+                    plt.xlim()[0],
+                    plt.xlim()[1],
+                    "r",
+                    linestyles="dotted" if positive else "dashed",
+                )
 
         def set_axes_and_legend(ax):
-            ax.spines['left'].set_position('zero')
-            plt.locator_params(axis='x', nbins=4)
+            ax.spines["left"].set_position("zero")
+            plt.locator_params(axis="x", nbins=4)
             ax.axes.yaxis.set_ticks([])
             if has_seaborn:
                 sns.despine(ax=ax)
-            plt.legend(loc='upper right', fontsize='x-small')
+            plt.legend(loc="upper right", fontsize="x-small")
 
-        plt.axis('tight')
+        plt.axis("tight")
         gs = matplotlib.gridspec.GridSpec(1, 3, width_ratios=[6, 1, 1.5])
 
         ax1 = plt.subplot(gs[0])
         height = img.shape[0]
         ax1.imshow(img)
-        plt.title('frame $I_n$')
+        plt.title("frame $I_n$")
         plt.grid(False)
-        plt.axis('off')
+        plt.axis("off")
         plot_position_line(position_px, positive)
 
         ax = plt.subplot(gs[1], sharey=ax1)
-        plt.title('median line\nintensity')
-        plt.plot(features[:, frame_nr], range(height), label='$\mathrm{I}_n$')
-        plt.plot(features[:, frame_nr - 1], range(height), label='$\mathrm{I}_{n-1}$')
+        plt.title("median line\nintensity")
+        plt.plot(features[:, frame_nr], range(height), label="$\mathrm{I}_n$")
+        plt.plot(features[:, frame_nr - 1], range(height), label="$\mathrm{I}_{n-1}$")
         plot_position_line(position_px, positive)
         set_axes_and_legend(ax)
 
         ax = plt.subplot(gs[2], sharey=ax1)
-        plt.title('median line\nintensity\ndifference')
-        plt.plot(features[:, frame_nr].astype(float) - features[:, frame_nr - 1].astype(float),
-                 range(height), label='$\mathrm{I}_n - \mathrm{I}_{n-1}$')
-        plt.plot(features[:, frame_nr - 1].astype(float) - features[:, frame_nr - 2].astype(float),
-                 range(height), label='$\mathrm{I}_{n-1} - \mathrm{I}_{n-2}$')
+        plt.title("median line\nintensity\ndifference")
+        plt.plot(
+            features[:, frame_nr].astype(float)
+            - features[:, frame_nr - 1].astype(float),
+            range(height),
+            label="$\mathrm{I}_n - \mathrm{I}_{n-1}$",
+        )
+        plt.plot(
+            features[:, frame_nr - 1].astype(float)
+            - features[:, frame_nr - 2].astype(float),
+            range(height),
+            label="$\mathrm{I}_{n-1} - \mathrm{I}_{n-2}$",
+        )
         plot_position_line(position_px, positive)
         set_axes_and_legend(ax)
 
@@ -379,7 +490,9 @@ class FlashVideoSynchronization(object):
         mask_full_match = ~np.isnan(matched.sum(axis=1))
         matched_events = {}
         for idx, cam in enumerate(cameras):
-            matched_events[cam] = self.events[cam][matched[mask_full_match].astype(int)[:, idx]]
+            matched_events[cam] = self.events[cam][
+                matched[mask_full_match].astype(int)[:, idx]
+            ]
         return matched_events
 
     def __match_events__(self, cameras, offsets, base_cam):
@@ -399,8 +512,10 @@ class FlashVideoSynchronization(object):
         assert self.events
         nan_val = np.nan
 
-        time_rel = {cam: [e['frame_time'] - offsets[cam] for e in self.events[cam]]
-                          for cam in cameras}
+        time_rel = {
+            cam: [e["frame_time"] - offsets[cam] for e in self.events[cam]]
+            for cam in cameras
+        }
         n_events = {cam: len(time_rel[cam]) for cam in cameras}
         cam2idx = {cam: i for i, cam in enumerate(cameras)}
         for cam in cameras:
@@ -412,16 +527,20 @@ class FlashVideoSynchronization(object):
             matched[cam2idx[base_cam]] = position[base_cam]
             position[base_cam] += 1
             for cam in set(cameras) - {base_cam}:
-                while position[cam] < n_events[cam] and \
-                        (time_rel[cam][position[cam]] <
-                         time_rel[base_cam][matched[cam2idx[base_cam]]] - self.MATCH_EVENTS_CLOSENESS_MS):
+                while position[cam] < n_events[cam] and (
+                    time_rel[cam][position[cam]]
+                    < time_rel[base_cam][matched[cam2idx[base_cam]]]
+                    - self.MATCH_EVENTS_CLOSENESS_MS
+                ):
                     single_event = [nan_val] * len(cameras)
                     single_event[cam2idx[cam]] = position[cam]
                     all_matched.append(single_event)
                     position[cam] += 1
-                if position[cam] != n_events[cam] and \
-                        (time_rel[cam][position[cam]] <
-                         time_rel[base_cam][matched[cam2idx[base_cam]]] + self.MATCH_EVENTS_CLOSENESS_MS):
+                if position[cam] != n_events[cam] and (
+                    time_rel[cam][position[cam]]
+                    < time_rel[base_cam][matched[cam2idx[base_cam]]]
+                    + self.MATCH_EVENTS_CLOSENESS_MS
+                ):
                     matched[cam2idx[cam]] = position[cam]
                     position[cam] += 1
             all_matched.append(matched)
@@ -442,14 +561,20 @@ class FlashVideoSynchronization(object):
         # drift * t_f + shift + r / (R * fps)
         assert cam1 in parameters and cam2 in parameters
         p = parameters
-        X = np.vstack((
-            events_ij[cam2]['frame_time'],
-        )).T
-        y = events_ij[cam1]['frame_time'] + \
-            events_ij[cam1]['position_px'] / p[cam1]['sensor_rows'] * p[cam1]['mode_duration_ms'] \
-            - events_ij[cam2]['position_px'] / p[cam2]['sensor_rows'] * p[cam2]['mode_duration_ms']
+        X = np.vstack((events_ij[cam2]["frame_time"],)).T
+        y = (
+            events_ij[cam1]["frame_time"]
+            + events_ij[cam1]["position_px"]
+            / p[cam1]["sensor_rows"]
+            * p[cam1]["mode_duration_ms"]
+            - events_ij[cam2]["position_px"]
+            / p[cam2]["sensor_rows"]
+            * p[cam2]["mode_duration_ms"]
+        )
 
-        self.model[cam1] = {'time_per_row': float(p[cam1]['mode_duration_ms']) / p[cam1]['sensor_rows']}
+        self.model[cam1] = {
+            "time_per_row": float(p[cam1]["mode_duration_ms"]) / p[cam1]["sensor_rows"]
+        }
 
         # model_ransac = linear_model.RANSACRegressor(linear_model.LinearRegression())
         # model_ransac.fit(X, y)
@@ -459,9 +584,11 @@ class FlashVideoSynchronization(object):
         model.fit(X, y)
         shift = model.intercept_
         coef = model.coef_
-        self.model[cam2] = {'drift': coef[0],
-                            'shift': shift,
-                            'time_per_row': float(p[cam2]['mode_duration_ms']) / p[cam2]['sensor_rows']}
+        self.model[cam2] = {
+            "drift": coef[0],
+            "shift": shift,
+            "time_per_row": float(p[cam2]["mode_duration_ms"]) / p[cam2]["sensor_rows"],
+        }
 
     def synchronize(self, cameras, offsets, base_cam=None):
         """
@@ -479,12 +606,12 @@ class FlashVideoSynchronization(object):
         for i, cam in enumerate(set(cameras) - {base_cam}):
             e = self.get_matched_events([base_cam, cam], offsets, base_cam)
             n_matched_events = len(e[cam])
-            y_ = e[base_cam]['frame_time'].reshape(-1, 1)
+            y_ = e[base_cam]["frame_time"].reshape(-1, 1)
             X_ = np.zeros((n_matched_events, 3 * n + 1))
-            X_[:, 0] = - e[base_cam]['position_px']
-            X_[:, 1 + i * 3 + 0] = e[cam]['frame_time']
+            X_[:, 0] = -e[base_cam]["position_px"]
+            X_[:, 1 + i * 3 + 0] = e[cam]["frame_time"]
             X_[:, 1 + i * 3 + 1] = np.ones(len(e[cam]))
-            X_[:, 1 + i * 3 + 2] = e[cam]['position_px']
+            X_[:, 1 + i * 3 + 2] = e[cam]["position_px"]
             y.append(y_)
             X.append(X_)
         y = np.vstack(y)
@@ -497,12 +624,13 @@ class FlashVideoSynchronization(object):
         c = model.coef_[0]
 
         self.base_cam = base_cam
-        self.model = {base_cam: {'time_per_row': float(c[0])}}
+        self.model = {base_cam: {"time_per_row": float(c[0])}}
         for i, cam in enumerate(set(cameras) - {base_cam}):
-            self.model[cam] = {'drift':        float(c[1 + i * 3 + 0]),
-                               'shift':        float(c[1 + i * 3 + 1]),
-                               'time_per_row': float(c[1 + i * 3 + 2]),
-                               }
+            self.model[cam] = {
+                "drift": float(c[1 + i * 3 + 0]),
+                "shift": float(c[1 + i * 3 + 1]),
+                "time_per_row": float(c[1 + i * 3 + 2]),
+            }
         return X, y
 
     def get_time(self, cam, frame_time, row=None):
@@ -517,9 +645,9 @@ class FlashVideoSynchronization(object):
         assert cam in self.model
         if row is None:
             row = np.zeros_like(frame_time)
-        drift = self.model[cam].get('drift', 1)
-        shift = self.model[cam].get('shift', 0)
-        time_per_row = self.model[cam]['time_per_row']
+        drift = self.model[cam].get("drift", 1)
+        shift = self.model[cam].get("shift", 0)
+        time_per_row = self.model[cam]["time_per_row"]
 
         return frame_time * drift + shift + row * time_per_row
 
@@ -534,15 +662,19 @@ class FlashVideoSynchronization(object):
         """
         assert cam in self.model
 
-        drift = self.model[cam].get('drift', 1)
-        shift = self.model[cam].get('shift', 0)
-        time_per_row = self.model[cam]['time_per_row']
+        drift = self.model[cam].get("drift", 1)
+        shift = self.model[cam].get("shift", 0)
+        time_per_row = self.model[cam]["time_per_row"]
         idx = np.searchsorted(timestamps_ms, (synchronized_time - shift) / drift)
         frame_time = timestamps_ms[idx - 1]
-        row = ((synchronized_time - shift) / drift - frame_time) / (time_per_row / drift)
+        row = ((synchronized_time - shift) / drift - frame_time) / (
+            time_per_row / drift
+        )
         return idx - 1, frame_time, row
 
-    def __get_synchronized_frames_single_cam__(self, timestamps, master_timestamps, max_sync_error=None):
+    def __get_synchronized_frames_single_cam__(
+        self, timestamps, master_timestamps, max_sync_error=None
+    ):
         """
         Return synchronized timestamps and frames for a single camera.
 
@@ -555,15 +687,22 @@ class FlashVideoSynchronization(object):
         :return: synchronized_timestamps, synchronized_idx
         """
         if not max_sync_error:
-            max_sync_error = scipy.stats.mode(np.diff(master_timestamps))[0] / 2  # half of the standard frame duration
+            max_sync_error = (
+                scipy.stats.mode(np.diff(master_timestamps))[0] / 2
+            )  # half of the standard frame duration
 
         synchronized_timestamps = []
         synchronized_idx = []
         indices_after = np.searchsorted(timestamps, master_timestamps)
         for idx_after, t_master in zip(indices_after, master_timestamps):
             t_slave_before = timestamps[idx_after - 1]
-            t_slave_after = timestamps[idx_after] if idx_after < len(timestamps) else np.inf
-            if min(abs(t_slave_before - t_master), abs(t_slave_after - t_master)) > max_sync_error:
+            t_slave_after = (
+                timestamps[idx_after] if idx_after < len(timestamps) else np.inf
+            )
+            if (
+                min(abs(t_slave_before - t_master), abs(t_slave_after - t_master))
+                > max_sync_error
+            ):
                 synchronized_timestamps.append(-1)
                 synchronized_idx.append(-1)
             elif abs(t_slave_before - t_master) < abs(t_slave_after - t_master):
@@ -575,7 +714,14 @@ class FlashVideoSynchronization(object):
 
         return np.array(synchronized_timestamps), np.array(synchronized_idx)
 
-    def get_synchronized_frames(self, timestamps, master=None, perfect_master=True, dropped=True, max_sync_error=None):
+    def get_synchronized_frames(
+        self,
+        timestamps,
+        master=None,
+        perfect_master=True,
+        dropped=True,
+        max_sync_error=None,
+    ):
         """
         Return table of synchronized frame timings and frame indices.
 
@@ -606,8 +752,9 @@ class FlashVideoSynchronization(object):
         sync_timing = {}
         sync_frames = {}
         for cam in cameras:
-            times, frames = self.__get_synchronized_frames_single_cam__(self.get_time(cam, timestamps[cam]),
-                                                                        ref_timing, max_sync_error)
+            times, frames = self.__get_synchronized_frames_single_cam__(
+                self.get_time(cam, timestamps[cam]), ref_timing, max_sync_error
+            )
             sync_timing[cam] = times
             sync_frames[cam] = frames
 
@@ -622,7 +769,14 @@ class FlashVideoSynchronization(object):
 
         return sync_timing_array, sync_frames_array, ref_timing
 
-    def get_synchronized_image_sources(self, sources, master=None, perfect_master=False, dropped=True, max_sync_error=None):
+    def get_synchronized_image_sources(
+        self,
+        sources,
+        master=None,
+        perfect_master=False,
+        dropped=True,
+        max_sync_error=None,
+    ):
         """
         Return synchronized image sources.
 
@@ -637,30 +791,32 @@ class FlashVideoSynchronization(object):
         assert self.model
         cameras = list(sources.keys())
         timestamps = {cam: sources[cam].timestamps_ms for cam in cameras}
-        timing, frames, ref_timing = self.get_synchronized_frames(timestamps, master, perfect_master,
-                                                                  dropped, max_sync_error)
+        timing, frames, ref_timing = self.get_synchronized_frames(
+            timestamps, master, perfect_master, dropped, max_sync_error
+        )
         synchronized_sources = {
             cam: imagesource.SynchronizedSource(
                 sources[cam],
                 frames[:, cameras.index(cam)],
-                timing[:, cameras.index(cam)] - ref_timing)
-            for cam in cameras}
+                timing[:, cameras.index(cam)] - ref_timing,
+            )
+            for cam in cameras
+        }
 
         return synchronized_sources
 
     def to_json(self):
-        return json.dumps({'model': self.model, 'base_cam': self.base_cam})
+        return json.dumps({"model": self.model, "base_cam": self.base_cam})
 
     def to_yaml(self):
-        return yaml.dump({'model': self.model, 'base_cam': self.base_cam})
+        return yaml.dump({"model": self.model, "base_cam": self.base_cam})
 
     def from_yaml(self, s):
         data = yaml.load(s)
-        self.model = data['model']
-        self.base_cam = data['base_cam']
+        self.model = data["model"]
+        self.base_cam = data["base_cam"]
 
     def from_json(self, s):
         data = json.loads(s)
-        self.base_cam = data['base_cam']
-        self.model = {int(k): v for k, v in data['model'].items()}
-
+        self.base_cam = data["base_cam"]
+        self.model = {int(k): v for k, v in data["model"].items()}

@@ -13,6 +13,7 @@ class Montage(object):
     plt.tight_layout(0)
     plt.axis('off')
     """
+
     def __init__(self, montage_size, nm=None):
         """
         Initialize image montage.
@@ -56,18 +57,23 @@ class Montage(object):
         :rtype: array-like
         """
         if not self.sizes:
-            self.sizes = [self.__adjust_image_size__(img.shape[:2][::-1]) for img in images]
+            self.sizes = [
+                self.__adjust_image_size__(img.shape[:2][::-1]) for img in images
+            ]
         if not self.shape:
             if images[0].ndim == 2:
                 self.shape = tuple(self.montage_size[::-1])
             else:
                 self.shape = tuple(self.montage_size[::-1]) + (3,)
 
-        images_resized = [cv2.resize(f, (tuple(np.round(s).astype(int)))) for f, s in zip(images, self.sizes)]
+        images_resized = [
+            cv2.resize(f, (tuple(np.round(s).astype(int))))
+            for f, s in zip(images, self.sizes)
+        ]
         out = np.zeros(self.shape, dtype=np.uint8)
         for i in range(len(images)):
             x = int(i % self.nm[0]) * int(self.cell_size[0])
             y = int(i / self.nm[0]) * int(self.cell_size[1])
             imgw, imgh = self.sizes[i]
-            out[y: y + imgh, x: x + imgw] = images_resized[i]
+            out[y : y + imgh, x : x + imgw] = images_resized[i]
         return out

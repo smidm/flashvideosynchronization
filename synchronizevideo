@@ -9,19 +9,33 @@ from flashvideosynchronization import FlashVideoSynchronization
 from montage import Montage
 
 
-parser = argparse.ArgumentParser(description='Synchronize multiple video files containing camera flashes.')
-parser.add_argument('files', nargs='+', type=str, help='input video files')
-parser.add_argument('--write-preview', type=str, help='write synchronized preview montage')
-parser.add_argument('--out-synchronized-dir', type=str, help='write input files synchronized to a directory')
-parser.add_argument('--show-flashes', action='store_true', help='show a chart with detected flashes')
-parser.add_argument('--model-json', action='store_true', help='print synchronization model in json')
-parser.add_argument('--model-yaml', action='store_true', help='print synchronization model in yaml')
+parser = argparse.ArgumentParser(
+    description="Synchronize multiple video files containing camera flashes."
+)
+parser.add_argument("files", nargs="+", type=str, help="input video files")
+parser.add_argument(
+    "--write-preview", type=str, help="write synchronized preview montage"
+)
+parser.add_argument(
+    "--out-synchronized-dir",
+    type=str,
+    help="write input files synchronized to a directory",
+)
+parser.add_argument(
+    "--show-flashes", action="store_true", help="show a chart with detected flashes"
+)
+parser.add_argument(
+    "--model-json", action="store_true", help="print synchronization model in json"
+)
+parser.add_argument(
+    "--model-yaml", action="store_true", help="print synchronization model in yaml"
+)
 # parser.add_argument('--save-synchronization-meta-dir', type=str,
 #                     help='save FlashVideoSynchronization and SynchronizedSource(s) to a directory')
 args = parser.parse_args()
 n_inputs = len(args.files)
 if n_inputs < 2:
-    parser.error('provide at least two input video files')
+    parser.error("provide at least two input video files")
 
 filenames = {i: filename for i, filename in enumerate(args.files)}
 
@@ -34,11 +48,13 @@ if args.show_flashes:
     sync.show_events()
     plt.show()
 
-offsets = {cam: sync.events[cam][matching_events[cam]]['frame_time'] for cam in range(n_inputs)}
+offsets = {
+    cam: sync.events[cam][matching_events[cam]]["frame_time"] for cam in range(n_inputs)
+}
 sync.synchronize(offsets.keys(), offsets, base_cam=0)
 model_description = sync.model_description()
 for cam in range(n_inputs):
-    print('{}: {}'.format(filenames[cam], model_description[cam]))
+    print("{}: {}".format(filenames[cam], model_description[cam]))
 
 if args.model_json:
     print(sync.to_json())
@@ -53,7 +69,9 @@ for cam, filename in filenames.items():
     sources[cam].extract_timestamps()
 
 # get frame synchronized image sources
-sources_sync = sync.get_synchronized_image_sources(sources, master=0, dropped=False)  # , perfect_master=False)
+sources_sync = sync.get_synchronized_image_sources(
+    sources, master=0, dropped=False
+)  # , perfect_master=False)
 
 if args.write_preview:
     for source in sources_sync.values():
@@ -62,9 +80,11 @@ if args.write_preview:
 
     frame_size = (1920, 1080)
     montage = Montage(frame_size, (2, 2))
-    fourcc = cv2.VideoWriter_fourcc(*'mp4v')
+    fourcc = cv2.VideoWriter_fourcc(*"mp4v")
     # TODO: change to synchronized fps
-    video_writer = cv2.VideoWriter(args.write_preview, cv2.CAP_FFMPEG, fourcc, sources[0].fps(), frame_size)
+    video_writer = cv2.VideoWriter(
+        args.write_preview, cv2.CAP_FFMPEG, fourcc, sources[0].fps(), frame_size
+    )
     for _ in tqdm(range(len(sources_sync[0].frame_lookup_table))):
         imgs = [source.get_next_image() for source in sources_sync.values()]
         out_img = montage.montage(imgs)
@@ -72,7 +92,7 @@ if args.write_preview:
     video_writer.release()
 
 if args.out_synchronized_dir:
-    fourcc = cv2.VideoWriter_fourcc(*'mp4v')
+    fourcc = cv2.VideoWriter_fourcc(*"mp4v")
     for source in sources_sync.values():
         source.rewind()
         source.source.color_conversion_from_bgr = None
@@ -82,7 +102,11 @@ if args.out_synchronized_dir:
         # TODO: change to synchronized fps
         video_writer = cv2.VideoWriter(
             os.path.join(args.out_synchronized_dir, os.path.basename(filenames[cam])),
-            cv2.CAP_FFMPEG, fourcc, sources[0].fps(), img_width_height)
+            cv2.CAP_FFMPEG,
+            fourcc,
+            sources[0].fps(),
+            img_width_height,
+        )
         for _ in tqdm(range(len(sources_sync[cam].frame_lookup_table))):
             video_writer.write(sources_sync[cam].get_next_image())
         video_writer.release()
