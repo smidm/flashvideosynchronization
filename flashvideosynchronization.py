@@ -126,6 +126,13 @@ class FlashVideoSynchronization(object):
         self.MATCH_EVENTS_CLOSENESS_MS = 80  # 35
 
     def detect_flash_events(self, filenames):
+        """
+        Detect flash events in input video files.
+
+        Store results in self.events.
+
+        :param filenames: {cam: filename, ...}
+        """
         # cashed using joblib.Memory
         config = {'hidden_scanlines': 0,
                   'diff_max_peak_thresh': self.DIFFMAX_PEAK_THRESH,
@@ -164,7 +171,7 @@ class FlashVideoSynchronization(object):
             plt.xlabel('time in seconds')
         else:
             plt.xlabel('time in milliseconds')
-        plt.tight_layout(0)
+        plt.tight_layout(pad=0)
         if has_seaborn:
             sns.despine(fig)
 
@@ -215,12 +222,12 @@ class FlashVideoSynchronization(object):
             if drop_negative:
                 mask_bad |= ~cam_events['positive']
 
-            if drop_longer_and_shorter:
-                # apply filter only to the events that are not split (naturally shortened)
-                event_length_px = median_event_length_px[img_heights_px[cam]]
-                mask_bad |= mask_events_not_split[cam] & \
-                            (((cam_events['end'] - cam_events['start']) < event_length_px * 0.9) |
-                            ((cam_events['end'] - cam_events['start']) > event_length_px * 1.1))
+            # if drop_longer_and_shorter:
+            #     # apply filter only to the events that are not split (naturally shortened)
+            #     event_length_px = median_event_length_px[img_heights_px[cam]]
+            #     mask_bad |= mask_events_not_split[cam] & \
+            #                 (((cam_events['end'] - cam_events['position_px']) < event_length_px * 0.9) |
+            #                 ((cam_events['end'] - cam_events['position_px']) > event_length_px * 1.1))
 
             mask_bad |= override_bad_mask
 
@@ -585,8 +592,8 @@ class FlashVideoSynchronization(object):
             sync_timing[cam] = times
             sync_frames[cam] = frames
 
-        sync_timing_array = np.vstack(sync_timing.values()).T
-        sync_frames_array = np.vstack(sync_frames.values()).T.astype(int)
+        sync_timing_array = np.vstack(tuple(sync_timing.values())).T
+        sync_frames_array = np.vstack(tuple(sync_frames.values())).T.astype(int)
 
         if not dropped:
             no_dropped = np.all(sync_timing_array != -1, axis=1)
@@ -631,63 +638,4 @@ class FlashVideoSynchronization(object):
             data = yaml.load(fr)
         self.model = data['model']
         self.base_cam = data['base_cam']
-
-
-if __name__ == '__main__':
-    # example 3 camera synchronization
-    cameras = [1, 2, 3]
-    filenames = {cam: 'sample_data/%d.mp4' % cam for cam in cameras}
-
-    # load video files and extract frame timestamps
-    sources = {cam: imagesource.TimedVideoSource(filenames[cam])
-               for cam in cameras}
-    for source in sources.values():
-        source.extract_timestamps()
-
-    # detect flash events
-    sync = FlashVideoSynchronization()
-    sync.detect_flash_events(filenames)
-
-    # # save all detected events for analysis
-    # features = {cam: extract_features(filenames[cam], compute_luminance_median, dtype=np.uint8) for cam in cameras}
-    # sync.save_event_images(sources, features, 'out/events')
-
-    # manually set rough offset by matching an event
-    sync.show_events()
-    matching_events = {1: 0, 2: 0, 3: 0}
-    offsets = {cam: sync.events[cam][matching_events[cam]]['frame_time'] for cam in cameras}
-    sync.show_events(offsets)  # now the events should appear aligned
-
-    # # optionally filter bad events and fix some wrongly detected
-    # images_dimensions = {}
-    # for cam in cameras:
-    #     img = sources[cam].get_image(0)
-    #     images_dimensions[cam] = img.shape
-    # obsolete_regions = {cam: {'top': 28, 'bottom': images_dimensions[cam][0] - 1}
-    #                     for cam in cameras}
-    # override_good = {0: [], 1: [1917, 5983, 10718], 2: [3605, 5122, 14935], 3: [6415, ], 4: []}  # force to stay
-    # override_start = {0: [], 1: [(10718, 983), ], 2: [], 3: [(6415, 633), ], 4: []}  # force to stay and fix start
-    # override_bad = {0: [], 1: [], 2: [12992, ], 3: [], 4: []}  # force to filter out
-    # sync.filter_events(obsolete_regions, override_good, override_bad, override_start)
-
-    # synchronize cameras: find parameters transformations that map camera time to reference camera time
-    sync.synchronize(cameras, offsets, base_cam=1)
-    print(sync.model)
-
-    print(sync.get_time(1, 0, 1000))
-
-    # get frame synchronized image sources
-    sources_sync = sync.get_synchronized_image_sources(sources, master=1, dropped=False)  # , perfect_master=False)
-
-    # use the synchronized video sources to show synchronized frames with time deviations
-    frame = 0
-    for i, (cam, source) in enumerate(sources_sync.items()):
-        plt.figure()
-        plt.title('err: %02.f ms' % source.get_synchronization_error(frame))
-        img = source.get_image(frame)
-        if img is not None:
-            plt.imshow(img)
-        plt.grid(False)
-        plt.axis('off')
-    plt.show()
 
