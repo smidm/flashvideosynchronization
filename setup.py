@@ -28,7 +28,7 @@ setup(
         "matplotlib",
         "scipy",
         "pyyaml",
-        "opencv-python",
+        "opencv-python-headless",
         "tqdm",
     ],
     extras_require={"visualization": "seaborn"},
