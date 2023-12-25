@@ -22,7 +22,7 @@ setup(
     py_modules=["flashvideosynchronization", "montage"],
     install_requires=[
         "imagesource",
-        "sklearn",
+        "scikit-learn",
         "joblib",
         "numpy",
         "matplotlib",
