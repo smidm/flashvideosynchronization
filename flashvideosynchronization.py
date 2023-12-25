@@ -13,6 +13,7 @@ import yaml
 import json
 from sklearn import linear_model
 from functools import reduce
+from tqdm import tqdm
 
 try:
     import seaborn as sns
@@ -46,14 +47,12 @@ def extract_features_from_source(source, frame_start=0, frame_end=-1):
     else:
         frame_range = range(frame_start, frame_end)
     source.seek(frame_start)
-    for i, frame in enumerate(frame_range):
+    for i, frame in enumerate(tqdm(frame_range)):
         try:
             img = source.get_next_image()
         except IOError:
             break
         features.append(np.median(img[:, :, 0], axis=1))
-        if (i % 10) == 0:
-            logging.info("%d / %d" % (i, frame_end - frame_start))
     return np.array(features, dtype=np.uint8).T
 
 
