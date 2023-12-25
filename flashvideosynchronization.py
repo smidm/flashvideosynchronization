@@ -100,7 +100,7 @@ def detect_events(
             ("frame", int),
             ("position_px", float),
             ("frame_time", float),
-            ("positive", np.bool),
+            ("positive", bool),
         ],
     )
 
