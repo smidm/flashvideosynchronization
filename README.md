@@ -1,6 +1,6 @@
 # Sub-millisecond Accurate Multiple Video Synchronization Using Camera Flashes
 
-A python module for multiple video synchronization using photographic camera flashes. The module synchronizes arbitrary number of video sequences when there are present abrupt lighting changes that affect majority of pixels (e.g. flashes). The video sequences do not need to be overlapping. 
+A python module for offline synchronization of multiple videos using flashes present in the footage. The module synchronizes arbitrary number of video sequences when there are present abrupt lighting changes that affect majority of pixels (e.g. flashes). The video sequences do not require overlapping fields of view.
 
 Sequences acquired using rolling shutter image sensors (vast majority of CMOS image sensors) can be synchronized up to sub-millisecond accuracy.
 
